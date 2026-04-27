@@ -49,7 +49,6 @@ Jika Anda menggunakan OS selain Windows atau ingin melakukan instalasi tahap dem
 1. **Clone Repository:**
 
        git clone [URL_REPO_ANDA]
-       cd mapping-switch
 
 2. **Install Dependensi:**
 
