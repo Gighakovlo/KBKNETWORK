@@ -63,6 +63,24 @@
                 <div class="mt-8 text-emerald-400 font-bold text-xs uppercase tracking-widest flex items-center gap-2">Kelola Perangkat <span class="group-hover:translate-x-2 transition-transform">&rarr;</span></div>
             </button>
 
+            <a href="/inventory" class="group relative bg-slate-800/40 backdrop-blur-xl border border-slate-700 p-8 rounded-3xl overflow-hidden hover:border-emerald-500/50 transition-all duration-500 shadow-2xl">
+                <div class="absolute -top-10 -right-10 w-32 h-32 bg-emerald-600 rounded-full blur-[80px] opacity-20 group-hover:opacity-40 transition-opacity"></div>
+                
+                <div class="relative z-10">
+                    <div class="w-16 h-16 bg-emerald-600/20 rounded-2xl flex items-center justify-center text-3xl mb-6 border border-emerald-500/30 group-hover:scale-110 transition-transform duration-500">
+                        📦
+                    </div>
+                    <h2 class="text-2xl font-black text-white tracking-tight mb-2">Inventory & Dataset</h2>
+                    <p class="text-slate-400 text-sm font-medium leading-relaxed">
+                        Manajemen aset IT Support terpusat. Kelola inventaris, mutasi barang, dan log permintaan perangkat.
+                    </p>
+                    
+                    <div class="mt-8 flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-widest opacity-0 group-hover:opacity-100 transform translate-x-[-10px] group-hover:translate-x-0 transition-all">
+                        Buka Konsol Data &rarr;
+                    </div>
+                </div>
+            </a>
+
         </div>
     </main>
 

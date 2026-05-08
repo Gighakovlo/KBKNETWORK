@@ -5,6 +5,12 @@ use App\Http\Controllers\LocationController;
 use App\Http\Controllers\SwitchController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ViewerController;
+use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\IpAddressController;
+use App\Http\Controllers\AssetMovementController;
+use App\Http\Controllers\AssetRequestController;
+
 
 // Jika user buka alamat depan, langsung tendang ke HUB (bukan lagi dashboard)
 Route::get('/', function () {
@@ -84,3 +90,48 @@ Route::middleware('auth')->group(function () {
     // Rute untuk Export Excel/CSV Master Data
     Route::get('/export-inventory', [LocationController::class, 'exportInventory'])->name('export.inventory');
 });
+
+
+// ===== JALUR SISTEM ASSET MANAGEMENT (ITAM) =====
+Route::get('/inventory', [InventoryController::class, 'index'])->name('inventory.index');
+Route::get('/inventory/create', [InventoryController::class, 'create'])->name('inventory.create');
+Route::get('/inventory/category/{id}/fields', [InventoryController::class, 'getFields']);
+Route::post('/inventory', [InventoryController::class, 'store'])->name('inventory.store');
+Route::get('/inventory/category/{id}', [InventoryController::class, 'showCategory'])->name('inventory.category');
+Route::get('/inventory/{id}/edit', [InventoryController::class, 'edit'])->name('inventory.edit');
+Route::put('/inventory/{id}', [InventoryController::class, 'update'])->name('inventory.update');
+Route::get('/inventory/category/{id}/export', [InventoryController::class, 'exportExcel'])->name('inventory.export');
+Route::get('/inventory/category/{id}/template', [InventoryController::class, 'downloadTemplate'])->name('inventory.template');
+Route::post('/inventory/category/{id}/import', [InventoryController::class, 'importExcel'])->name('inventory.import');
+// Rute Pemusnah Massal (Taruh di atas rute hapus satuan)
+Route::post('/inventory/bulk-delete', [InventoryController::class, 'bulkDelete'])->name('inventory.bulkDelete');
+Route::delete('/inventory/{id}', [InventoryController::class, 'destroy'])->name('inventory.destroy');
+
+// ===== JALUR MASTER SETTINGS (ADMIN KONTROL) =====
+Route::get('/inventory/settings', [SettingsController::class, 'index'])->name('settings.index');
+
+// Rute Kendali Kategori & Field
+Route::post('/inventory/settings/category', [SettingsController::class, 'storeCategory'])->name('settings.category.store');
+Route::delete('/inventory/settings/category/{id}', [SettingsController::class, 'destroyCategory'])->name('settings.category.destroy');
+Route::post('/inventory/settings/category/{categoryId}/field', [SettingsController::class, 'storeField'])->name('settings.field.store');
+Route::delete('/inventory/settings/field/{id}', [SettingsController::class, 'destroyField'])->name('settings.field.destroy');
+
+// Rute Kendali Lokasi (Gedung & Lantai Text-Only)
+Route::post('/inventory/settings/location', [SettingsController::class, 'storeLocation'])->name('settings.location.store');
+
+// ===== JALUR IP ADDRESS MANAGEMENT (IPAM) =====
+Route::get('/inventory/ipam', [IpAddressController::class, 'index'])->name('ipam.index');
+Route::post('/inventory/ipam', [IpAddressController::class, 'store'])->name('ipam.store');
+Route::post('/inventory/ipam/sync', [IpAddressController::class, 'syncOldData'])->name('ipam.sync');
+Route::delete('/inventory/ipam/{id}', [IpAddressController::class, 'destroy'])->name('ipam.destroy');
+Route::put('/inventory/ipam/{id}', [IpAddressController::class, 'update'])->name('ipam.update');
+
+
+// ===== JALUR LOG MUTASI BARANG =====
+Route::get('/inventory/movements', [AssetMovementController::class, 'index'])->name('movements.index');
+
+// ===== JALUR TICKETING & REQUEST BARANG =====
+Route::get('/inventory/requests', [AssetRequestController::class, 'index'])->name('requests.index');
+Route::post('/inventory/requests', [AssetRequestController::class, 'store'])->name('requests.store');
+Route::put('/inventory/requests/{id}/complete', [AssetRequestController::class, 'markAsCompleted'])->name('requests.complete');
+Route::delete('/inventory/requests/{id}', [AssetRequestController::class, 'destroy'])->name('requests.destroy');
