@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Floor; // <--- TAMBAHKAN BARIS INI
 use App\Models\IpAddress;
 use Illuminate\Http\Request;
 use App\Models\AssetCategory;
@@ -66,10 +67,20 @@ class InventoryController extends Controller
                 'brand_model' => $request->brand_model,
                 'status' => $request->status ?? 'aktif',
                 'current_user' => $request->current_user,
+                'description' => $request->description, // <--- TAMBAHKAN INI
                 'installation_year' => $request->installation_year,
                 'building_id' => $request->building_id,
                 'floor_id' => $request->floor_id,
             ]);
+
+            // LOGIKA BARU YANG BENAR: Cari IP-nya, Kunci ke Asetnya
+            if ($request->filled('ip_address')) {
+                $ip = trim($request->ip_address);
+                \App\Models\IpAddress::updateOrCreate(
+                    ['ip_address' => $ip], // Sistem mencari berdasarkan teks IP-nya
+                    ['asset_id' => $asset->id, 'status' => 'in_use'] // Mengunci IP ke aset ini
+                );
+            }
 
             // --- LOGIKA PENGAITAN IP ADDRESS ---
             if ($request->filled('ip_address_id')) {
@@ -79,7 +90,8 @@ class InventoryController extends Controller
                 ]);
             }
 
-            // Menyimpan Spesifikasi Dinamis & Auto-Harvesting IP
+            // Menyimpan Spesifikasi Dinamis
+            // Sisa-sisa logika penyedotan IP sudah dimusnahkan dari sini!
             if ($request->has('dynamic_fields')) {
                 foreach ($request->dynamic_fields as $fieldId => $value) {
                     if (!empty($value)) {
@@ -88,20 +100,10 @@ class InventoryController extends Controller
                             'category_field_id' => $fieldId,
                             'value' => $value,
                         ]);
-
-                        // --- LOGIKA SEDOT IP OTOMATIS ---
-                        $fieldDef = CategoryField::find($fieldId);
-                        // Jika nama kolom mengandung kata 'IP' atau 'Alamat IP'
-                        if ($fieldDef && (stripos($fieldDef->field_name, 'IP') !== false || stripos($fieldDef->field_name, 'Alamat IP') !== false)) {
-                            // Logika Baru: Cari IP berdasarkan Aset-nya, bukan angka IP-nya
-                            IpAddress::updateOrCreate(
-                                ['asset_id' => $asset->id], // Yang dicari adalah ID Aset
-                                ['ip_address' => trim($value), 'status' => 'in_use'] // Yang diupdate adalah angka IP-nya
-                            );
-                        }
                     }
                 }
             }
+
 
             DB::commit();
             return response()->json(['success' => true, 'message' => "Aset {$assetCode} berhasil diinput!", 'asset_code' => $assetCode]);
@@ -112,16 +114,40 @@ class InventoryController extends Controller
     }
     
     // 5. Halaman Daftar Aset Per Kategori (Tabel Dinamis)
+    // 5. Halaman Daftar Aset Per Kategori (Server-Side Search & Sort)
     public function showCategory(Request $request, $id)
     {
         $category = AssetCategory::with('fields')->findOrFail($id);
         $perPage = (int) $request->query('per_page', 10);
+        
+        // Tangkap parameter pencarian dan sortir dari URL
+        $search = $request->query('search');
+        $sort = $request->query('sort', 'desc'); // Default: terbaru/terbesar di atas
 
-        // Bypass SQL Server 2008 Offset Error: Ambil semua data dulu, lalu paginate via Laravel Collection
-        $allAssets = Asset::with(['values.field', 'building', 'floor'])
-                        ->where('asset_category_id', $id)
-                        ->orderBy('id', 'desc')
-                        ->get();
+        // Bangun Query Database
+        $query = Asset::with(['values.field', 'building', 'floor', 'ipAddress'])
+                      ->where('asset_category_id', $id);
+
+        // Jika ada pencarian, cari di semua kolom relevan
+        if (!empty($search)) {
+            $query->where(function($q) use ($search) {
+                $q->where('asset_code', 'like', "%{$search}%")
+                  ->orWhere('name', 'like', "%{$search}%")
+                  ->orWhere('brand_model', 'like', "%{$search}%")
+                  ->orWhere('current_user', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        // Terapkan Sortir berdasarkan asset_code
+        if ($sort === 'asc') {
+            $query->orderBy('asset_code', 'asc');
+        } else {
+            $query->orderBy('asset_code', 'desc');
+        }
+
+        // Bypass SQL Server 2008 Offset Error: Ambil semua hasil query, lalu paginate via Laravel Collection
+        $allAssets = $query->get();
 
         $page = \Illuminate\Pagination\Paginator::resolveCurrentPage() ?: 1;
         $assets = new LengthAwarePaginator(
@@ -129,10 +155,11 @@ class InventoryController extends Controller
             $allAssets->count(),
             $perPage,
             $page,
-            ['path' => $request->url(), 'query' => $request->query()]
+            // Pertahankan parameter search, sort, dan per_page di link paginasi
+            ['path' => $request->url(), 'query' => $request->query()] 
         );
 
-        return view('inventory.category', compact('category', 'assets', 'perPage'));
+        return view('inventory.category', compact('category', 'assets', 'perPage', 'search', 'sort'));
     }
 
     // 6. Hapus Data Satuan
@@ -180,10 +207,32 @@ class InventoryController extends Controller
                 'brand_model' => $request->brand_model,
                 'status' => $request->status ?? 'aktif',
                 'current_user' => $request->current_user,
+                'description' => $request->description, // <--- TAMBAHKAN INI
                 'installation_year' => $request->installation_year,
                 'building_id' => $request->building_id,
                 'floor_id' => $request->floor_id,
             ]);
+
+            // LOGIKA BARU YANG BENAR: Sistem Pelepasan & Pengikatan IP Cerdas
+            if ($request->filled('ip_address')) {
+                $ip = trim($request->ip_address);
+
+                // 1. Lepaskan IP lama yang mungkin masih menempel di aset ini (Kembalikan ke IPAM)
+                \App\Models\IpAddress::where('asset_id', $asset->id)
+                    ->where('ip_address', '!=', $ip)
+                    ->update(['asset_id' => null, 'status' => 'available']);
+
+                // 2. Cari IP yang baru diketik, lalu kunci ke aset ini (Otomatis terbuat jika belum ada)
+                \App\Models\IpAddress::updateOrCreate(
+                    ['ip_address' => $ip],
+                    ['asset_id' => $asset->id, 'status' => 'in_use']
+                );
+            } else {
+                // Jika user menekan tombol "Cabut IP" / Belum Ada
+                // Jangan hapus IP-nya, tapi kembalikan statusnya ke Available di IPAM
+                \App\Models\IpAddress::where('asset_id', $asset->id)
+                    ->update(['asset_id' => null, 'status' => 'available']);
+            }
 
             // --- 3. TANGKAP DATA BARU & DETEKSI MUTASI ---
             $newBuildingModel = \App\Models\Building::find($request->building_id);
@@ -204,10 +253,8 @@ class InventoryController extends Controller
                 ]);
             }
 
-            // --- 4. LOGIKA UPDATE SPESIFIKASI (EAV) & SEDOT IP OTOMATIS ---
-            // Lepaskan dulu IP lama yang menempel di aset ini dari IP Manager
-            \App\Models\IpAddress::where('asset_id', $asset->id)->update(['asset_id' => null, 'status' => 'available']);
-
+            // --- 4. LOGIKA UPDATE SPESIFIKASI (EAV) ---
+            // Sisa-sisa logika pelepasan dan penyedotan IP sudah dimusnahkan dari sini!
             if ($request->has('dynamic_fields')) {
                 foreach ($request->dynamic_fields as $fieldId => $value) {
                     // Update data spesifikasi di tabel AssetValue
@@ -215,17 +262,6 @@ class InventoryController extends Controller
                         ['asset_id' => $asset->id, 'category_field_id' => $fieldId],
                         ['value' => $value]
                     );
-
-                    // Jika field ini adalah IP dan ada isinya, sedot ke IP Manager!
-                    if (!empty($value)) {
-                        $fieldDef = CategoryField::find($fieldId);
-                        if ($fieldDef && (stripos($fieldDef->field_name, 'IP') !== false || stripos($fieldDef->field_name, 'Alamat IP') !== false)) {
-                            \App\Models\IpAddress::updateOrCreate(
-                                ['asset_id' => $asset->id], // Cari berdasarkan ID Aset
-                                ['ip_address' => trim($value), 'status' => 'in_use'] // Update angka IP-nya
-                            );
-                        }
-                    }
                 }
             }
 
@@ -245,7 +281,15 @@ class InventoryController extends Controller
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Template ' . $category->prefix);
 
+        // Header Dasar
         $headers = ['Nama Perangkat', 'Merek/Model', 'Pengguna', 'Tahun', 'Status', 'Nama Gedung', 'Nama Lantai'];
+        
+        // LOGIKA BARU: Tambahkan Kolom IP Jika Kategori Membutuhkannya
+        if ($category->has_ip) {
+            $headers[] = 'IP Address';
+        }
+
+        // Header Spesifikasi EAV
         foreach ($category->fields as $field) { $headers[] = $field->field_name; }
 
         $sheet->fromArray($headers, NULL, 'A1');
@@ -319,7 +363,7 @@ class InventoryController extends Controller
         $spreadsheet = IOFactory::load($file->getPathname());
         $sheet = $spreadsheet->getActiveSheet();
         $rows = $sheet->toArray();
-        array_shift($rows);
+        array_shift($rows); // Buang baris header
 
         DB::beginTransaction();
         try {
@@ -329,8 +373,8 @@ class InventoryController extends Controller
 
                 $buildingId = null;
                 $floorId = null;
-                $namaGedung = trim($row[5]);
-                $namaLantai = trim($row[6]);
+                $namaGedung = trim($row[5] ?? '');
+                $namaLantai = trim($row[6] ?? '');
 
                 if (!empty($namaGedung)) {
                     $bldg = Building::where('name', $namaGedung)->first();
@@ -352,37 +396,41 @@ class InventoryController extends Controller
                     'asset_category_id' => $category->id,
                     'asset_code' => $assetCode,
                     'name' => trim($row[0]),
-                    'brand_model' => trim($row[1]),
-                    'current_user' => trim($row[2]),
-                    'installation_year' => trim($row[3]),
-                    'status' => strtolower(trim($row[4])) ?: 'aktif',
+                    'brand_model' => trim($row[1] ?? ''),
+                    'current_user' => trim($row[2] ?? ''),
+                    'installation_year' => trim($row[3] ?? ''),
+                    'status' => strtolower(trim($row[4] ?? '')) ?: 'aktif',
                     'building_id' => $buildingId,
                     'floor_id' => $floorId,
                 ]);
 
-                // --- 4. INSERT SPESIFIKASI DINAMIS & HARVESTING IP ---
-                    $dynIndex = 7; 
-                    foreach ($category->fields as $field) {
-                        if (isset($row[$dynIndex]) && trim($row[$dynIndex]) !== '') {
-                            $val = trim($row[$dynIndex]);
-                            
-                            AssetValue::create([
-                                'asset_id' => $asset->id,
-                                'category_field_id' => $field->id,
-                                'value' => $val
-                            ]);
+                // Index kolom ke-7 (H)
+                $dynIndex = 7; 
 
-                            // Tangkap IP dari Excel!
-                            if (stripos($field->field_name, 'IP') !== false || stripos($field->field_name, 'Alamat IP') !== false) {
-                                // Logika Baru: Cari IP berdasarkan Aset-nya, bukan angka IP-nya
-                                IpAddress::updateOrCreate(
-                                    ['asset_id' => $asset->id], // Yang dicari adalah ID Aset
-                                    ['ip_address' => trim($value), 'status' => 'in_use'] // Yang diupdate adalah angka IP-nya
-                                );
-                            }
-                        }
-                        $dynIndex++;
+                // --- LOGIKA BARU: TANGKAP IP NATIVE (Jika Ada) ---
+                if ($category->has_ip) {
+                    if (isset($row[$dynIndex]) && trim($row[$dynIndex]) !== '') {
+                        $ipVal = trim($row[$dynIndex]);
+                        \App\Models\IpAddress::updateOrCreate(
+                            ['ip_address' => $ipVal],
+                            ['asset_id' => $asset->id, 'status' => 'in_use']
+                        );
                     }
+                    $dynIndex++; // Geser index ke kanan untuk membaca spesifikasi EAV
+                }
+
+                // --- INSERT SPESIFIKASI DINAMIS (EAV) ---
+                foreach ($category->fields as $field) {
+                    if (isset($row[$dynIndex]) && trim($row[$dynIndex]) !== '') {
+                        AssetValue::create([
+                            'asset_id' => $asset->id,
+                            'category_field_id' => $field->id,
+                            'value' => trim($row[$dynIndex])
+                        ]);
+                    }
+                    $dynIndex++;
+                }
+                
                 $importedCount++;
             }
             DB::commit();
@@ -410,5 +458,115 @@ class InventoryController extends Controller
             DB::rollBack();
             return response()->json(['success' => false, 'message' => 'Gagal menghapus massal: ' . $e->getMessage()], 500);
         }
+    }
+
+    // =================================================================
+    // 13. FITUR MASTER AUDIT: CETAK LAPORAN (VISUAL & DATA)
+    // =================================================================
+    public function printReport(Request $request)
+    {
+        // Tarik semua data Gedung -> Lantai -> Aset -> Kategori, IP, dan Nilai EAV
+        $buildings = Building::with(['floors.assets.category', 'floors.assets.ipAddress', 'floors.assets.values.field'])->get();
+        
+        // Tarik definisi Kategori beserta kolom dinamisnya
+        $categories = AssetCategory::with('fields')->get();
+        
+        return view('inventory.print_report', compact('buildings', 'categories'));
+    }
+
+    // =================================================================
+    // 14. FITUR MASTER AUDIT: EXPORT EXCEL DINAMIS
+    // =================================================================
+    public function exportInventory()
+    {
+        $buildings = Building::with(['floors.assets.category', 'floors.assets.ipAddress', 'floors.assets.values.field'])->get();
+        $categories = AssetCategory::with('fields')->get();
+
+        $spreadsheet = new Spreadsheet();
+        
+        // --- 1. SIAPKAN SHEET GLOBAL (ALL INVENTORY) ---
+        $sheetAll = $spreadsheet->getActiveSheet();
+        $sheetAll->setTitle('All Inventory');
+        
+        $headersAll = ['No', 'Gedung', 'Lantai', 'Kategori', 'Kode Aset', 'Hostname/Nama', 'Merek/Model', 'Pengguna', 'IP Address', 'Status Operasional', 'Tahun', 'Keterangan'];
+        $sheetAll->fromArray($headersAll, NULL, 'A1');
+        $sheetAll->getStyle('A1:L1')->getFont()->setBold(true);
+        $sheetAll->getStyle('A1:L1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FFD9E1F2');
+
+        // --- 2. SIAPKAN SHEET KHUSUS PER KATEGORI ---
+        $sheets = ['All' => $sheetAll];
+        $rowCounters = ['All' => 2];
+        $noCounters = ['All' => 1];
+
+        foreach ($categories as $cat) {
+            $sheet = $spreadsheet->createSheet();
+            $sheetName = substr(preg_replace('/[^A-Za-z0-9 ]/', '', $cat->name), 0, 30); // Bersihkan nama untuk Excel
+            $sheet->setTitle($sheetName);
+            $sheets[$cat->id] = $sheet;
+            $rowCounters[$cat->id] = 2;
+            $noCounters[$cat->id] = 1;
+
+            // Header Khusus per Kategori (Menambahkan Spesifikasi EAV di belakang)
+            $catHeaders = ['No', 'Gedung', 'Lantai', 'Kode Aset', 'Hostname/Nama', 'Merek/Model', 'Pengguna', 'IP Address', 'Status', 'Tahun', 'Keterangan'];
+            foreach ($cat->fields as $field) { $catHeaders[] = $field->field_name; }
+            
+            $sheet->fromArray($catHeaders, NULL, 'A1');
+            $lastCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($catHeaders));
+            $sheet->getStyle('A1:' . $lastCol . '1')->getFont()->setBold(true);
+            $sheet->getStyle('A1:' . $lastCol . '1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FFE2EFDA');
+        }
+
+        // --- 3. DISTRIBUSI DATA KE SHEET ---
+        foreach ($buildings as $building) {
+            foreach ($building->floors as $floor) {
+                foreach ($floor->assets as $asset) {
+                    
+                    $catId = $asset->asset_category_id;
+                    $ip = $asset->ipAddress->ip_address ?? '-';
+                    
+                    // A. Masukkan ke Sheet All
+                    $dataAll = [
+                        $noCounters['All']++, $building->name, $floor->name, $asset->category->name ?? 'Unknown',
+                        $asset->asset_code, $asset->name, $asset->brand_model ?? '-', $asset->current_user ?? '-',
+                        $ip, strtoupper($asset->status ?? '-'), $asset->installation_year ?? '-', $asset->description ?? '-'
+                    ];
+                    $sheets['All']->fromArray($dataAll, NULL, 'A' . $rowCounters['All']++);
+
+                    // B. Masukkan ke Sheet Khusus Kategori (Jika Kategori Valid)
+                    if (isset($sheets[$catId])) {
+                        $dataCat = [
+                            $noCounters[$catId]++, $building->name, $floor->name, $asset->asset_code,
+                            $asset->name, $asset->brand_model ?? '-', $asset->current_user ?? '-', $ip,
+                            strtoupper($asset->status ?? '-'), $asset->installation_year ?? '-', $asset->description ?? '-'
+                        ];
+                        
+                        // Tambahkan nilai Spesifikasi Khusus (EAV)
+                        $category = $categories->firstWhere('id', $catId);
+                        if ($category) {
+                            foreach ($category->fields as $field) {
+                                $valObj = $asset->values->firstWhere('category_field_id', $field->id);
+                                $dataCat[] = $valObj ? $valObj->value : '-';
+                            }
+                        }
+                        $sheets[$catId]->fromArray($dataCat, NULL, 'A' . $rowCounters[$catId]++);
+                    }
+                }
+            }
+        }
+
+        // --- 4. RAPIKAN KOLOM & DOWNLOAD ---
+        foreach ($sheets as $sheet) {
+            $highestColumn = $sheet->getHighestColumn();
+            foreach (range('A', $highestColumn) as $col) { $sheet->getColumnDimension($col)->setAutoSize(true); }
+        }
+
+        $fileName = 'Master_Audit_Inventory_KBK_' . date('Ymd_His') . '.xlsx';
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="' . $fileName . '"');
+        header('Cache-Control: max-age=0');
+
+        $writer = new Xlsx($spreadsheet);
+        $writer->save('php://output');
+        exit;
     }
 }

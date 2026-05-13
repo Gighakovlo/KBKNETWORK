@@ -24,6 +24,23 @@
 </head>
 <body class="font-sans relative text-slate-800">
 
+    @php
+        // Filter otomatis dari The Great Merge
+        $switches = collect();
+        $pcs = collect();
+
+        if(isset($floor) && $floor->assets) {
+            foreach($floor->assets as $asset) {
+                $prefix = strtoupper($asset->category->prefix ?? 'AST');
+                if(str_contains($prefix, 'SWT') || str_contains($prefix, 'ROU')) {
+                    $switches->push($asset);
+                } else {
+                    $pcs->push($asset);
+                }
+            }
+        }
+    @endphp
+
     <div class="fixed top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none no-print">
         <div class="absolute top-[-10%] right-[-10%] w-96 h-96 bg-blue-900 rounded-full mix-blend-screen filter blur-[120px] opacity-20"></div>
     </div>
@@ -54,24 +71,24 @@
                 </div>
             </div>
             <div class="text-right">
-                <p class="text-sm font-bold text-gray-800">LAPORAN TOPOLOGI</p>
+                <p class="text-sm font-bold text-gray-800">LAPORAN PERANGKAT</p>
                 <p class="text-xs text-gray-500">Dicetak: {{ date('d M Y') }}</p>
             </div>
         </div>
 
         <div class="text-center mb-8">
-            <h2 class="text-xl font-bold uppercase text-gray-900">Dokumentasi Jaringan: {{ $floor->building->name }} - {{ $floor->name }}</h2>
+            <h2 class="text-xl font-bold uppercase text-gray-900">Dokumentasi Jaringan: {{ $floor->building->name ?? 'Unknown' }} - {{ $floor->name ?? 'Unknown' }}</h2>
         </div>
 
         <div class="mb-10">
-            <h3 class="text-md font-bold text-gray-800 mb-3 border-b-2 border-gray-200 pb-1">1. Diagram Topologi Jaringan</h3>
+            <h3 class="text-md font-bold text-gray-800 mb-3 border-b-2 border-gray-200 pb-1">1. Pemetaan Hierarki Perangkat</h3>
             <div id="topologyNetwork"></div>
         </div>
 
         <div class="page-break"></div>
 
         <div class="mb-8">
-            <h3 class="text-md font-bold text-gray-800 mb-3 border-b-2 border-gray-200 pb-1">2. Daftar Perangkat Switch</h3>
+            <h3 class="text-md font-bold text-gray-800 mb-3 border-b-2 border-gray-200 pb-1">2. Daftar Perangkat Switch / Router</h3>
             <table class="w-full text-sm text-left border-collapse border border-gray-300">
                 <thead class="bg-gray-100 text-gray-800">
                     <tr>
@@ -86,23 +103,24 @@
                     <tr>
                         <td class="border border-gray-300 p-2 text-center">{{ $index + 1 }}</td>
                         <td class="border border-gray-300 p-2 font-bold">{{ $sw->name }}</td>
-                        <td class="border border-gray-300 p-2">{{ $sw->ip_address ?? '-' }}</td>
+                        <td class="border border-gray-300 p-2">{{ $sw->ipAddress->ip_address ?? '-' }}</td>
                         <td class="border border-gray-300 p-2">{{ $sw->brand_model ?? '-' }}</td>
                     </tr>
                     @empty
-                    <tr><td colspan="4" class="border border-gray-300 p-2 text-center text-gray-500">Tidak ada data switch.</td></tr>
+                    <tr><td colspan="4" class="border border-gray-300 p-2 text-center text-gray-500">Tidak ada data switch/router di lantai ini.</td></tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
 
         <div class="mb-8">
-            <h3 class="text-md font-bold text-gray-800 mb-3 border-b-2 border-gray-200 pb-1">3. Daftar Perangkat Komputer (PC)</h3>
+            <h3 class="text-md font-bold text-gray-800 mb-3 border-b-2 border-gray-200 pb-1">3. Daftar Perangkat Komputer (PC) & Lainnya</h3>
             <table class="w-full text-sm text-left border-collapse border border-gray-300">
                 <thead class="bg-gray-100 text-gray-800">
                     <tr>
                         <th class="border border-gray-300 p-2 w-10 text-center">No</th>
-                        <th class="border border-gray-300 p-2">Nama PC</th>
+                        <th class="border border-gray-300 p-2">Kategori</th>
+                        <th class="border border-gray-300 p-2">Nama Hostname</th>
                         <th class="border border-gray-300 p-2">IP Address</th>
                         <th class="border border-gray-300 p-2">Pengguna (User)</th>
                     </tr>
@@ -111,38 +129,13 @@
                     @forelse($pcs as $index => $pc)
                     <tr>
                         <td class="border border-gray-300 p-2 text-center">{{ $index + 1 }}</td>
-                        <td class="border border-gray-300 p-2 font-bold">{{ $pc->name }}</td>
-                        <td class="border border-gray-300 p-2">{{ $pc->ip_address ?? '-' }}</td>
+                        <td class="border border-gray-300 p-2 font-bold">{{ $pc->category->name ?? 'Unknown' }}</td>
+                        <td class="border border-gray-300 p-2">{{ $pc->name }}</td>
+                        <td class="border border-gray-300 p-2">{{ $pc->ipAddress->ip_address ?? '-' }}</td>
                         <td class="border border-gray-300 p-2">{{ $pc->current_user ?? '-' }}</td>
                     </tr>
                     @empty
-                    <tr><td colspan="4" class="border border-gray-300 p-2 text-center text-gray-500">Tidak ada data PC.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-
-        <div class="mb-8">
-            <h3 class="text-md font-bold text-gray-800 mb-3 border-b-2 border-gray-200 pb-1">4. Rincian Jalur Kabel</h3>
-            <table class="w-full text-sm text-left border-collapse border border-gray-300">
-                <thead class="bg-gray-100 text-gray-800">
-                    <tr>
-                        <th class="border border-gray-300 p-2 w-10 text-center">No</th>
-                        <th class="border border-gray-300 p-2">Titik Awal</th>
-                        <th class="border border-gray-300 p-2">Titik Tujuan</th>
-                        <th class="border border-gray-300 p-2">Jenis Jalur</th>
-                    </tr>
-                </thead>
-                <tbody class="text-gray-700">
-                    @forelse($connectionDetails as $index => $conn)
-                    <tr>
-                        <td class="border border-gray-300 p-2 text-center">{{ $index + 1 }}</td>
-                        <td class="border border-gray-300 p-2 font-bold">{{ $conn->from }}</td>
-                        <td class="border border-gray-300 p-2 font-bold">{{ $conn->to }}</td>
-                        <td class="border border-gray-300 p-2 font-bold" style="color: {{ $conn->color }}">{{ $conn->type }}</td>
-                    </tr>
-                    @empty
-                    <tr><td colspan="4" class="border border-gray-300 p-2 text-center text-gray-500">Tidak ada jalur kabel.</td></tr>
+                    <tr><td colspan="5" class="border border-gray-300 p-2 text-center text-gray-500">Tidak ada data perangkat tambahan.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -156,9 +149,9 @@
     </div>
 
     <script>
-        const switches = @json($switches);
-        const pcs = @json($pcs);
-        const connections = @json($connections);
+        // Mengubah Collection menjadi JSON untuk JavaScript
+        const switches = @json($switches->values());
+        const pcs = @json($pcs->values());
 
         const switchSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#3b82f6"><path d="M2 7v10h20V7H2zm18 8H4V9h16v6zm-2-4h-2v2h2v-2zm-4 0h-2v2h2v-2zm-4 0H8v2h2v-2z"/></svg>';
         const pcSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#14b8a6"><path d="M21 2H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7v2H8v2h8v-2h-2v-2h7c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H3V4h18v12z"/></svg>';
@@ -169,8 +162,9 @@
         let nodesArray = [];
         
         switches.forEach(sw => {
+            let ipLabel = sw.ip_address ? sw.ip_address.ip_address : '';
             nodesArray.push({
-                id: 'switch_' + sw.id, label: sw.name + '\n' + (sw.ip_address || ''),
+                id: 'switch_' + sw.id, label: sw.name + '\n' + ipLabel,
                 image: switchIcon, shape: 'image', level: 0,
                 font: { face: 'sans-serif', size: 14, bold: true, color: '#1e293b' }
             });
@@ -185,18 +179,10 @@
         });
 
         let nodes = new vis.DataSet(nodesArray);
-        let edgesArray = [];
-        connections.forEach(conn => {
-            edgesArray.push({
-                from: conn.from_type + '_' + conn.from_id, to: conn.to_type + '_' + conn.to_id,
-                color: { color: conn.color, highlight: conn.color }, width: 3,
-                smooth: { type: 'cubicBezier', forceDirection: 'vertical', roundness: 0.4 }
-            });
-        });
-        
-        let edges = new vis.DataSet(edgesArray);
         let container = document.getElementById('topologyNetwork');
-        let data = { nodes: nodes, edges: edges };
+        
+        // Fitur Kabel sudah dihapus, maka Edge (Jalur) ditiadakan.
+        let data = { nodes: nodes, edges: new vis.DataSet([]) };
         
         let options = {
             layout: { hierarchical: { direction: 'UD', levelSeparation: 150, nodeSpacing: 250, treeSpacing: 200 } },

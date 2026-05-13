@@ -6,9 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class IpAddress extends Model
 {
-    protected $guarded = [];
+    protected $guarded = []; // Buka semua gembok kolom
 
-    // Relasi: Satu IP Address menempel pada SATU Aset (bisa null)
     public function asset()
     {
         return $this->belongsTo(Asset::class, 'asset_id');

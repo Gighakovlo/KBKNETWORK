@@ -4,25 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Mapping Control - {{ $floor->name }}</title>
+    <title>Enterprise Mapping - {{ $floor->name }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
     <style>
         body { background-color: #0f172a; overflow: hidden; }
         .glass-panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
         .glass-nav { background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(16px); border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
-        #deviceModal, #notifModal, #cableModal { z-index: 9999; }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        #deviceModal, #notifModal { z-index: 9999; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
         .grab-cursor { cursor: grab; }
         .grabbing-cursor { cursor: grabbing !important; }
+        .draggable-item { cursor: grab; }
+        .draggable-item:active { cursor: grabbing; }
     </style>
 </head>
 <body class="text-slate-300 font-sans h-screen flex flex-col relative">
 
     <div class="fixed top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
-        <div class="absolute top-[20%] left-[-10%] w-96 h-96 bg-blue-900 rounded-full mix-blend-screen filter blur-[120px] opacity-20"></div>
+        <div class="absolute top-[20%] left-[-10%] w-96 h-96 bg-indigo-900 rounded-full mix-blend-screen filter blur-[120px] opacity-20"></div>
     </div>
 
     <header class="glass-nav px-6 py-4 flex items-center justify-between shadow-2xl relative z-20">
@@ -32,252 +34,280 @@
             </a>
             <div class="h-6 w-px bg-slate-700"></div>
             <div>
-                <h1 class="text-lg font-black text-white tracking-wide">{{ $floor->building->name }} <span class="text-blue-500">|</span> {{ $floor->name }}</h1>
-                <p class="text-xs text-slate-400 uppercase tracking-widest font-semibold">Topology Editor Mode</p>
+                <h1 class="text-lg font-black text-white tracking-wide">{{ $floor->building->name }} <span class="text-indigo-500">|</span> {{ $floor->name }}</h1>
+                <p class="text-xs text-slate-400 uppercase tracking-widest font-semibold">Enterprise Topology Mode</p>
             </div>
         </div>
         <div class="flex items-center gap-3">
-            <span id="cableStatus" class="text-red-400 font-bold hidden items-center mr-3 text-sm tracking-wide animate-pulse">
-                ⚡ Menunggu Perangkat Pertama...
-            </span>
-            <button id="btnCableMode" class="bg-slate-800 border border-slate-600 text-slate-300 px-5 py-2.5 rounded-xl font-bold hover:bg-slate-700 transition flex gap-2 items-center text-sm shadow-lg">
-                <span id="cableIcon">🔌</span> <span id="cableText">Mode Tarik Kabel</span>
-            </button>
-            <a href="/mapping/{{ $floor->id }}/print" target="_blank" class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-5 py-2.5 rounded-xl font-bold transition flex items-center gap-2 text-sm shadow-[0_0_15px_rgba(79,70,229,0.4)]">
+            <a href="/mapping/{{ $floor->id }}/print" target="_blank" class="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-5 py-2.5 rounded-xl font-bold transition flex items-center gap-2 text-sm shadow-[0_0_15px_rgba(79,70,229,0.4)]">
                 📄 Cetak Laporan PDF
             </a>
         </div>
     </header>
 
     <div class="flex flex-grow overflow-hidden relative z-10">
-        <aside class="w-80 glass-panel h-full border-r border-slate-700/50 overflow-y-auto hidden xl:block shadow-2xl relative z-20 custom-scrollbar">
-            <div class="p-6 space-y-8">
-                
-                <div class="relative">
-                    <div class="absolute -left-6 top-0 w-1 h-full bg-blue-500 rounded-r-md"></div>
-                    <h2 class="text-sm font-black mb-4 text-blue-400 uppercase tracking-widest flex items-center gap-2"><span class="text-lg">🗄️</span> Node Switch</h2>
-                    <form id="formAddSwitch" class="space-y-3">
-                        <input type="text" id="sw_name" required class="w-full bg-slate-900/80 border border-slate-700 text-white px-4 py-2.5 rounded-lg focus:outline-none focus:border-blue-500 transition text-sm placeholder-slate-600" placeholder="Nama Switch">
-                        
-                        <div class="relative">
-                            <input type="text" id="sw_ip" class="w-full bg-slate-900/80 border border-slate-700 text-white px-4 py-2.5 rounded-lg focus:outline-none focus:border-blue-500 transition text-sm placeholder-slate-600" placeholder="IP Address (contoh: 192.168.1.1)" oninput="this.value = this.value.replace(/[^0-9.]/g, '')">
-                            <div class="mt-2 flex items-center justify-end">
-                                <label class="cursor-pointer flex items-center gap-2 text-xs font-bold text-slate-400 select-none hover:text-blue-400 transition">
-                                    <input type="checkbox" id="sw_ip_none" class="peer sr-only" onchange="toggleIpState('sw_ip', this.checked)">
-                                    <div class="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-500 relative"></div>
-                                    Set "Belum Ada"
-                                </label>
-                            </div>
-                        </div>
-
-                        <input type="text" id="sw_brand" class="w-full bg-slate-900/80 border border-slate-700 text-white px-4 py-2.5 rounded-lg focus:outline-none focus:border-blue-500 transition text-sm placeholder-slate-600" placeholder="Merek/Model">
-                        <input type="number" id="sw_year" class="w-full bg-slate-900/80 border border-slate-700 text-white px-4 py-2.5 rounded-lg focus:outline-none focus:border-blue-500 transition text-sm placeholder-slate-600" placeholder="Tahun Pemasangan (Cth: 2024)">
-                        
-                        <button type="submit" class="w-full bg-blue-600/20 border border-blue-500 text-blue-400 py-2.5 rounded-lg font-bold hover:bg-blue-600 hover:text-white transition text-sm shadow-[0_0_10px_rgba(59,130,246,0.2)] mt-2">+ Tambah Switch</button>
-                    </form>
-                </div>
-                
-                <div class="h-px w-full bg-slate-700/50"></div>
-
-                <div class="relative">
-                    <div class="absolute -left-6 top-0 w-1 h-full bg-teal-500 rounded-r-md"></div>
-                    <h2 class="text-sm font-black mb-4 text-teal-400 uppercase tracking-widest flex items-center gap-2"><span class="text-lg">💻</span> Node Client (PC)</h2>
-                    <form id="formAddPc" class="space-y-3">
-                        <input type="text" id="pc_name" required class="w-full bg-slate-900/80 border border-slate-700 text-white px-4 py-2.5 rounded-lg focus:outline-none focus:border-teal-500 transition text-sm placeholder-slate-600" placeholder="Nama PC">
-                        
-                        <div class="relative">
-                            <input type="text" id="pc_ip" class="w-full bg-slate-900/80 border border-slate-700 text-white px-4 py-2.5 rounded-lg focus:outline-none focus:border-teal-500 transition text-sm placeholder-slate-600" placeholder="IP Address (contoh: 192.168.1.1)" oninput="this.value = this.value.replace(/[^0-9.]/g, '')">
-                            <div class="mt-2 flex items-center justify-end">
-                                <label class="cursor-pointer flex items-center gap-2 text-xs font-bold text-slate-400 select-none hover:text-teal-400 transition">
-                                    <input type="checkbox" id="pc_ip_none" class="peer sr-only" onchange="toggleIpState('pc_ip', this.checked)">
-                                    <div class="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-teal-500 relative"></div>
-                                    Set "Belum Ada"
-                                </label>
-                            </div>
-                        </div>
-
-                        <input type="text" id="pc_user" class="w-full bg-slate-900/80 border border-slate-700 text-white px-4 py-2.5 rounded-lg focus:outline-none focus:border-teal-500 transition text-sm placeholder-slate-600" placeholder="Pengguna Saat Ini">
-                        
-                        <select id="pc_status" required class="w-full bg-slate-900/80 border border-slate-700 text-white px-4 py-2.5 rounded-lg focus:outline-none focus:border-teal-500 transition text-sm">
-                            <option value="aktif">🟢 Status: Aktif</option>
-                            <option value="tidak digunakan">⚪ Status: Tidak Digunakan</option>
-                            <option value="rusak">🔴 Status: Rusak</option>
+        <aside class="w-96 glass-panel h-full border-r border-slate-700/50 flex flex-col shadow-2xl relative z-20">
+            
+            <div class="p-6 border-b border-slate-700/80 bg-slate-900/50 overflow-y-auto max-h-[60vh] custom-scrollbar">
+                <h2 class="text-base font-black mb-4 text-emerald-400 uppercase tracking-widest flex items-center gap-2">
+                    <span class="text-xl">⚡</span> Deploy Aset Baru
+                </h2>
+                <form id="formSpawnAsset" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 mb-1">Kategori Perangkat *</label>
+                        <select id="spawn_category" required class="w-full bg-slate-950/80 border border-slate-700 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-emerald-500 transition text-sm font-bold text-slate-300">
+                            <option value="">-- Pilih Kategori --</option>
+                            @foreach($categories as $cat)
+                                <option value="{{ $cat->id }}">{{ $cat->name }} ({{ $cat->prefix }})</option>
+                            @endforeach
                         </select>
-                        
-                        <input type="number" id="pc_year" class="w-full bg-slate-900/80 border border-slate-700 text-white px-4 py-2.5 rounded-lg focus:outline-none focus:border-teal-500 transition text-sm placeholder-slate-600" placeholder="Tahun Pemasangan (Cth: 2024)">
+                    </div>
 
-                        <button type="submit" class="w-full bg-teal-600/20 border border-teal-500 text-teal-400 py-2.5 rounded-lg font-bold hover:bg-teal-600 hover:text-white transition text-sm shadow-[0_0_10px_rgba(20,184,166,0.2)] mt-2">+ Tambah PC</button>
-                    </form>
-                </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 mb-1">Nama Perangkat *</label>
+                        <input type="text" id="spawn_name" required class="w-full bg-slate-950/80 border border-slate-700 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-emerald-500 transition text-sm" placeholder="Cth: SW_Kantor_1">
+                    </div>
+                    
+                    <div id="spawn_ip_wrapper" class="hidden mt-4">
+                        <label class="block text-xs font-bold text-slate-400 mb-1">IP Address / Jaringan (Opsional)</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="spawn_ip" 
+                                placeholder="Cth: 192.168.1.10" 
+                                pattern="^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$"
+                                oninput="if(!this.disabled) this.value = this.value.replace(/[^0-9.]/g, '')"
+                                class="w-full bg-slate-950/80 border border-slate-700 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-emerald-500 transition text-sm disabled:opacity-50 disabled:bg-slate-900">
+                            <button type="button" id="btnSpawnToggleIp" onclick="toggleSpawnIp()" 
+                                class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 px-3 py-3 rounded-xl transition font-bold text-[10px] uppercase tracking-widest shrink-0 w-24 text-center">
+                                Belum Ada
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 mt-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 mb-1">Merek/Model</label>
+                            <input type="text" id="spawn_brand" class="w-full bg-slate-950/80 border border-slate-700 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-emerald-500 transition text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 mb-1">Pengguna</label>
+                            <input type="text" id="spawn_user" class="w-full bg-slate-950/80 border border-slate-700 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-emerald-500 transition text-sm">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 mb-1">Tahun Pasang</label>
+                            <input type="number" id="spawn_year" class="w-full bg-slate-950/80 border border-slate-700 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-emerald-500 transition text-sm" placeholder="Cth: 2024">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 mb-1">Status Aset</label>
+                            <select id="spawn_status" class="w-full bg-slate-950/80 border border-slate-700 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-emerald-500 transition text-sm font-bold">
+                                <option value="aktif">🟢 Aktif</option>
+                                <option value="rusak">🔴 Rusak</option>
+                                <option value="tidak digunakan">⚪ Tidak Digunakan</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 mb-1">Keterangan / Catatan</label>
+                        <textarea id="spawn_description" rows="2" class="w-full bg-slate-950/80 border border-slate-700 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-emerald-500 transition text-sm"></textarea>
+                    </div>
+
+                    <div id="dynamicFieldsContainer" class="space-y-4 pt-4 border-t border-slate-700/50 hidden">
+                        <p class="text-xs font-bold text-emerald-500 uppercase tracking-widest mb-2">Spesifikasi Khusus</p>
+                    </div>
+                    
+                    <button type="submit" class="w-full mt-4 bg-emerald-600 border border-emerald-500 text-white py-3 rounded-xl font-bold hover:bg-emerald-500 transition text-sm uppercase tracking-widest shadow-[0_0_15px_rgba(16,185,129,0.3)] mt-4">
+                        + Spawn ke Kanvas
+                    </button>
+                </form>
+            </div>
+
+            <div class="p-5 border-b border-slate-700 bg-slate-900/80">
+                <h2 class="text-sm font-black text-indigo-400 uppercase tracking-widest flex items-center gap-2">
+                    <span class="text-xl">📦</span> Laci Gudang Aset
+                </h2>
+                <p class="text-xs text-slate-500 mt-2">Aset yang belum diletakkan. Drag & Drop ke kanvas.</p>
+            </div>
+            <div class="flex-grow p-5 overflow-y-auto custom-scrollbar space-y-4" id="gudangList">
+                @forelse($unplacedAssets as $asset)
+                    <div class="draggable-item bg-slate-800/80 border border-slate-600 p-4 rounded-xl hover:border-indigo-400 hover:bg-slate-800 transition shadow-sm group" 
+                         draggable="true" ondragstart="dragStart(event, '{{ $asset->id }}')">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-base font-bold text-white group-hover:text-indigo-300 transition">{{ $asset->name }}</p>
+                                <p class="text-xs font-mono text-slate-400 mt-1">{{ $asset->asset_code }}</p>
+                            </div>
+                            @if($asset->category && $asset->category->icon_path)
+                                <div class="p-1 rounded-lg border" style="background-color: {{ $asset->category->color ?? '#3b82f6' }}20; border-color: {{ $asset->category->color ?? '#3b82f6' }}50;">
+                                    <img src="{{ asset($asset->category->icon_path) }}" alt="icon" class="w-8 h-8 object-contain filter drop-shadow-md">
+                                </div>
+                            @else
+                                <span class="text-[10px] px-2 py-1 rounded uppercase font-bold tracking-widest" style="background-color: {{ $asset->category->color ?? '#3b82f6' }}30; color: {{ $asset->category->color ?? '#3b82f6' }}; border: 1px solid {{ $asset->category->color ?? '#3b82f6' }}60;">
+                                    {{ $asset->category->prefix ?? 'AST' }}
+                                </span>
+                            @endif
+                        </div>
+                    </div>
+                @empty
+                    <div class="text-center p-8 border border-dashed border-slate-700 rounded-xl mt-4">
+                        <p class="text-slate-500 font-bold text-sm">Gudang kosong.</p>
+                    </div>
+                @endforelse
             </div>
         </aside>
 
-        <main class="flex-grow flex justify-center items-center bg-slate-950 relative overflow-hidden" id="mainContainer">
+        <main class="flex-grow flex justify-center items-center bg-slate-950 relative overflow-hidden" id="mainContainer" ondragover="allowDrop(event)" ondrop="drop(event)">
             <div class="absolute bottom-6 right-6 z-20 bg-slate-900/80 backdrop-blur border border-slate-700 px-4 py-2 rounded-xl text-xs font-bold text-slate-400 shadow-2xl pointer-events-none flex items-center gap-2">
                 <kbd class="bg-slate-800 border border-slate-600 px-2 py-1 rounded text-white font-mono shadow">Alt</kbd> + <kbd class="bg-slate-800 border border-slate-600 px-2 py-1 rounded text-white font-mono shadow">Drag</kbd> untuk Geser Kanvas
             </div>
-            
             <canvas id="mappingCanvas"></canvas>
         </main>
     </div>
 
-    <div id="deviceModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm hidden flex justify-center items-center transition-opacity">
-        <div class="glass-panel p-8 rounded-2xl shadow-[0_0_30px_rgba(0,0,0,0.5)] w-96 relative border-t-4 border-blue-500">
+    <div id="deviceModal" class="fixed inset-0 z-[300] hidden bg-[#0b1120]/80 backdrop-blur-sm flex items-center justify-center opacity-0 transition-opacity duration-300">
+        <div class="glass-panel p-6 rounded-2xl border-t-4 border-indigo-500 w-full max-w-2xl relative flex flex-col max-h-[85vh] shadow-[0_0_50px_rgba(79,70,229,0.15)] transform scale-95 transition-transform duration-300">
             <button id="closeModal" class="absolute top-4 right-5 text-slate-500 hover:text-red-400 font-black text-xl transition">&times;</button>
-            <h2 id="modalName" class="text-2xl font-black mb-6 text-white tracking-wide border-b border-slate-700 pb-3">Nama Perangkat</h2>
-            <div class="space-y-4 mb-8 text-slate-300 text-sm">
-                <div><span class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">IP Address</span><span id="modalIp" class="font-mono text-lg text-blue-400 font-bold">-</span></div>
-                
-                <div id="wrapperBrand" class="hidden"><span class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Merek / Model</span><span id="modalBrand" class="font-semibold text-white">-</span></div>
-                <div id="wrapperUser" class="hidden"><span class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Pengguna Saat Ini</span><span id="modalUser" class="font-semibold text-white">-</span></div>
-                
-                <div id="wrapperStatus" class="hidden"><span class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Status PC</span><span id="modalStatus" class="font-semibold text-white uppercase tracking-wider">-</span></div>
-                <div id="wrapperYear"><span class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Tahun Pemasangan</span><span id="modalYear" class="font-semibold text-white">-</span></div>
+            <div class="flex items-center gap-4 mb-4 pb-4 border-b border-slate-700 shrink-0">
+                <div id="modalDevIcon" class="w-14 h-14 rounded-xl flex items-center justify-center text-3xl shadow-inner border border-slate-600 shrink-0">📦</div>
+                <div>
+                    <h2 id="modalDevName" class="text-2xl font-black text-white tracking-wide">Hostname</h2>
+                    <p id="modalDevType" class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Kategori Perangkat</p>
+                </div>
             </div>
-            <button id="btnDeleteDevice" class="bg-red-900/40 border border-red-500 text-red-400 px-4 py-3 rounded-xl hover:bg-red-600 hover:text-white transition font-bold w-full text-sm uppercase tracking-widest shadow-[0_0_15px_rgba(239,68,68,0.2)]">Hapus Perangkat</button>
+            <div id="modalDynamicContent" class="overflow-y-auto custom-scrollbar flex-grow pr-2 space-y-4 text-sm"></div>
+            <div class="flex gap-3 pt-4 border-t border-slate-700 shrink-0 mt-4">
+                <a href="#" id="btnEditAsset" class="flex-1 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white px-4 py-3 rounded-xl transition font-bold text-xs uppercase tracking-widest text-center shadow-lg">Edit Data</a>
+                <button id="btnDeleteAsset" class="flex-1 bg-red-900/40 border border-red-500 text-red-400 hover:bg-red-600 hover:text-white px-4 py-3 rounded-xl transition font-bold text-xs uppercase tracking-widest shadow-lg">Hapus Permanen</button>
+            </div>
         </div>
     </div>
-
-    <div id="cableModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm hidden flex justify-center items-center transition-opacity">
-        <div class="glass-panel p-8 rounded-2xl shadow-[0_0_30px_rgba(0,0,0,0.5)] w-80 relative border-t-4 border-yellow-500">
-            <button id="closeCableModal" class="absolute top-4 right-5 text-slate-500 hover:text-red-400 font-black text-xl transition">&times;</button>
-            <h2 class="text-xl font-black mb-3 text-white tracking-wide border-b border-slate-700 pb-3">Deteksi Koneksi</h2>
-            <p class="text-slate-400 text-sm mb-8 font-medium">Jalur komunikasi terpilih. Putuskan koneksi fisik kabel ini?</p>
-            <button id="btnDeleteCable" class="bg-red-900/40 border border-red-500 text-red-400 px-4 py-3 rounded-xl hover:bg-red-600 hover:text-white transition font-bold w-full text-sm uppercase tracking-widest shadow-[0_0_15px_rgba(239,68,68,0.2)]">Putuskan Kabel</button>
-        </div>
-    </div>
-
-    <div id="notifModal" class="fixed top-24 right-8 bg-teal-900/80 backdrop-blur-md border border-teal-500 text-teal-100 font-bold px-6 py-4 rounded-xl shadow-[0_0_20px_rgba(20,184,166,0.3)] hidden transition-all duration-300 transform translate-x-10 opacity-0 z-50 flex items-center gap-3">
+    <div id="notifModal" class="fixed top-24 right-8 bg-indigo-900/80 backdrop-blur-md border border-indigo-500 text-indigo-100 font-bold px-6 py-4 rounded-xl shadow-[0_0_20px_rgba(79,70,229,0.3)] hidden transition-all duration-300 transform translate-x-10 opacity-0 z-50 flex items-center gap-3">
         <span class="text-xl">✓</span> <span id="notifText" class="text-sm tracking-wide">Notifikasi</span>
     </div>
 
     <script>
         const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-        const existingSwitches = @json($switches);
-        const existingPcs = @json($pcs);
-        const existingConnections = @json($connections);
-        const currentFloorId = {{ $floor->id }};
+        let placedAssets = @json($placedAssets);
         const imageUrl = "{{ $floor->image_path }}"; 
-
         const canvas = new fabric.Canvas('mappingCanvas', { selection: false, hoverCursor: 'pointer' });
-        let isCableMode = false; let cableSourceId = null; let cableSourceType = null;
+        let currentFloorId = {{ $floor->id }};
 
-        // FUNGSI CHECKBOX IP YANG BARU
-        function toggleIpState(inputId, isChecked) {
-            const inputField = document.getElementById(inputId);
-            if(isChecked) {
-                inputField.value = 'Belum Ada';
-                inputField.readOnly = true; // Pakai readOnly biar warnanya gak terlalu pudar dibanding disabled
-                inputField.classList.add('opacity-50', 'bg-slate-800');
+        function toggleSpawnIp() {
+            const ipInput = document.getElementById('spawn_ip');
+            const btn = document.getElementById('btnSpawnToggleIp');
+            if (ipInput.disabled) {
+                ipInput.disabled = false; ipInput.value = '';
+                btn.innerText = 'Belum Ada'; btn.className = "bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 px-3 py-3 rounded-xl transition font-bold text-[10px] uppercase tracking-widest shrink-0 w-24 text-center";
             } else {
-                inputField.value = '';
-                inputField.readOnly = false;
-                inputField.classList.remove('opacity-50', 'bg-slate-800');
+                ipInput.disabled = true; ipInput.value = 'Belum Ada';
+                btn.innerText = 'Isi Manual'; btn.className = "bg-red-900/80 hover:bg-red-800 border border-red-500/50 text-red-300 px-3 py-3 rounded-xl transition font-bold text-[10px] uppercase tracking-widest shrink-0 w-24 text-center";
             }
         }
 
-        // POST SWITCH DENGAN ERROR HANDLING
-        document.getElementById('formAddSwitch').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            let vpt = canvas.viewportTransform;
-            let spawnX = (canvas.width / 2 - vpt[4]) / vpt[0]; let spawnY = (canvas.height / 2 - vpt[5]) / vpt[3];
-
+        document.getElementById('spawn_category').addEventListener('change', async function() {
+            let catId = this.value; 
+            const categoriesData = @json($categories);
+            const selectedCat = categoriesData.find(c => c.id == catId);
+            const ipWrapper = document.getElementById('spawn_ip_wrapper');
+            const ipInput = document.getElementById('spawn_ip');
+            if(selectedCat && selectedCat.has_ip) ipWrapper.classList.remove('hidden');
+            else { ipWrapper.classList.add('hidden'); ipInput.value = ''; if(ipInput.disabled) toggleSpawnIp(); }
+            let container = document.getElementById('dynamicFieldsContainer');
+            if(!catId) { container.innerHTML = ''; container.classList.add('hidden'); return; }
             try {
-                const res = await fetch('/switch', { 
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrfToken }, // Tambah Accept JSON!
-                    body: JSON.stringify({ 
-                        floor_id: currentFloorId, 
-                        name: document.getElementById('sw_name').value, 
-                        ip_address: document.getElementById('sw_ip').value, 
-                        brand_model: document.getElementById('sw_brand').value, 
-                        installation_year: document.getElementById('sw_year').value,
-                        pos_x: spawnX, pos_y: spawnY 
-                    }) 
-                });
-
-                const r = await res.json();
-                
-                if(res.ok && r.success) { 
-                    drawDevice(r.data, 'switch'); 
-                    document.getElementById('formAddSwitch').reset(); 
-                    document.getElementById('sw_ip_none').checked = false; // Reset toggle
-                    toggleIpState('sw_ip', false); 
-                    showNotification('Switch Deployed!', 'border-blue-500 text-blue-100 bg-blue-900/80'); 
-                } else if (res.status === 422) {
-                    // Tangkap error validasi dari Laravel
-                    let errMsg = r.errors?.ip_address ? r.errors.ip_address[0] : (r.message || "Format data tidak valid!");
-                    showNotification(errMsg, "border-red-500 text-red-100 bg-red-900/80");
-                } else {
-                    showNotification("Terjadi kesalahan server!", "border-red-500 text-red-100 bg-red-900/80");
-                }
-            } catch (error) {
-                showNotification("Koneksi terputus!", "border-red-500 text-red-100 bg-red-900/80");
-            }
+                let res = await fetch(`/inventory/category/${catId}/fields`);
+                let fields = await res.json();
+                if (fields.length > 0) {
+                    container.classList.remove('hidden');
+                    let html = '<p class="text-xs font-bold text-emerald-500 uppercase tracking-widest mb-3">Spesifikasi Khusus</p>';
+                    fields.forEach(field => {
+                        let requiredMarker = field.is_required ? ' *' : '';
+                        let inputType = field.input_type === 'number' ? 'number' : (field.input_type === 'date' ? 'date' : 'text');
+                        html += `
+                            <div class="mb-3">
+                                <label class="block text-xs font-bold text-slate-400 mb-1">${field.field_name}${requiredMarker}</label>
+                                <input type="${inputType}" name="dyn_field_${field.id}" ${field.is_required ? 'required' : ''} data-field-id="${field.id}" class="dynamic-input w-full bg-slate-950 border border-slate-700 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-emerald-500 transition text-sm">
+                            </div>
+                        `;
+                    });
+                    container.innerHTML = html;
+                } else { container.innerHTML = ''; container.classList.add('hidden'); }
+            } catch(e) { console.error('Gagal memuat form spesifikasi'); }
         });
 
-        // POST PC DENGAN ERROR HANDLING
-        document.getElementById('formAddPc').addEventListener('submit', async function(e) {
+        document.getElementById('formSpawnAsset').addEventListener('submit', async function(e) {
             e.preventDefault();
             let vpt = canvas.viewportTransform;
-            let spawnX = (canvas.width / 2 - vpt[4]) / vpt[0]; let spawnY = (canvas.height / 2 - vpt[5]) / vpt[3];
-
+            let spawnX = (canvas.width / 2 - vpt[4]) / vpt[0]; 
+            let spawnY = (canvas.height / 2 - vpt[5]) / vpt[3];
+            let dynamicFields = {};
+            document.querySelectorAll('.dynamic-input').forEach(input => {
+                dynamicFields[input.getAttribute('data-field-id')] = input.value;
+            });
             try {
-                const res = await fetch('/pc', { 
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrfToken }, // Tambah Accept JSON!
-                    body: JSON.stringify({ 
-                        floor_id: currentFloorId, 
-                        name: document.getElementById('pc_name').value, 
-                        ip_address: document.getElementById('pc_ip').value, 
-                        current_user: document.getElementById('pc_user').value, 
-                        status: document.getElementById('pc_status').value,
-                        installation_year: document.getElementById('pc_year').value,
-                        pos_x: spawnX, pos_y: spawnY 
-                    }) 
+                const res = await fetch('/mapping/spawn', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
+                    body: JSON.stringify({
+                        floor_id: currentFloorId, asset_category_id: document.getElementById('spawn_category').value,
+                        name: document.getElementById('spawn_name').value, brand_model: document.getElementById('spawn_brand').value,
+                        current_user: document.getElementById('spawn_user').value, description: document.getElementById('spawn_description').value,
+                        installation_year: document.getElementById('spawn_year').value, status: document.getElementById('spawn_status').value,
+                        ip_address: document.getElementById('spawn_ip').disabled ? '' : document.getElementById('spawn_ip').value,
+                        pos_x: spawnX, pos_y: spawnY, dynamic_fields: dynamicFields
+                    })
                 });
-
                 const r = await res.json();
-                
-                if(res.ok && r.success) { 
-                    drawDevice(r.data, 'pc'); 
-                    document.getElementById('formAddPc').reset(); 
-                    document.getElementById('pc_ip_none').checked = false; // Reset toggle
-                    toggleIpState('pc_ip', false); 
-                    showNotification('PC Client Connected!', 'border-teal-500 text-teal-100 bg-teal-900/80'); 
-                } else if (res.status === 422) {
-                    // Tangkap error validasi dari Laravel
-                    let errMsg = r.errors?.ip_address ? r.errors.ip_address[0] : (r.message || "Format data tidak valid!");
-                    showNotification(errMsg, "border-red-500 text-red-100 bg-red-900/80");
-                } else {
-                    showNotification("Terjadi kesalahan server!", "border-red-500 text-red-100 bg-red-900/80");
-                }
-            } catch (error) {
-                showNotification("Koneksi terputus!", "border-red-500 text-red-100 bg-red-900/80");
-            }
+                if(r.success) {
+                    drawDevice(r.data);
+                    document.getElementById('formSpawnAsset').reset();
+                    document.getElementById('dynamicFieldsContainer').classList.add('hidden');
+                    document.getElementById('dynamicFieldsContainer').innerHTML = '';
+                    if(document.getElementById('spawn_ip').disabled) toggleSpawnIp(); 
+                    document.getElementById('spawn_ip_wrapper').classList.add('hidden');
+                    showNotification('Aset Deployed!', 'border-emerald-500 text-emerald-100 bg-emerald-900/80');
+                } else showNotification("Gagal: Pastikan data terisi!", "border-red-500 text-red-100 bg-red-900/80");
+            } catch (error) { showNotification("Koneksi terputus!", "border-red-500 text-red-100 bg-red-900/80"); }
         });
+
+        function dragStart(event, assetId) { event.dataTransfer.setData("assetId", assetId); }
+        function allowDrop(event) { event.preventDefault(); }
+        async function drop(event) {
+            event.preventDefault();
+            const assetId = event.dataTransfer.getData("assetId");
+            if(!assetId) return;
+            const rect = document.getElementById('mainContainer').getBoundingClientRect();
+            const pointer = canvas.restorePointerVpt({ x: event.clientX - rect.left, y: event.clientY - rect.top });
+            try {
+                const res = await fetch('/mapping/asset/update-position', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
+                    body: JSON.stringify({ id: assetId, pos_x: pointer.x, pos_y: pointer.y })
+                });
+                const r = await res.json();
+                if(r.success) {
+                    showNotification('Aset ditarik ke peta!', 'border-emerald-500 text-emerald-100 bg-emerald-900/80');
+                    setTimeout(() => location.reload(), 800); 
+                }
+            } catch (err) { showNotification("Gagal memindahkan aset!", "border-red-500 text-red-100 bg-red-900/80"); }
+        }
 
         function initMap() {
             const container = document.getElementById('mainContainer');
             canvas.setWidth(container.clientWidth); canvas.setHeight(container.clientHeight);
-            
             if(imageUrl && imageUrl !== '') {
                 fabric.Image.fromURL(imageUrl, function(img) {
                     img.set({ originX: 'left', originY: 'top', left: 0, top: 0, scaleX: 1, scaleY: 1, selectable: false, evented: false });
                     canvas.add(img); img.sendToBack();
-                    
                     let zoomX = canvas.width / img.width; let zoomY = canvas.height / img.height;
                     let initialZoom = Math.min(zoomX, zoomY) * 0.9; canvas.setZoom(initialZoom);
-                    
-                    let panX = (canvas.width - (img.width * initialZoom)) / 2;
-                    let panY = (canvas.height - (img.height * initialZoom)) / 2;
+                    let panX = (canvas.width - (img.width * initialZoom)) / 2; let panY = (canvas.height - (img.height * initialZoom)) / 2;
                     canvas.absolutePan(new fabric.Point(-panX, -panY));
-                    
-                    renderAllDevices();
+                    placedAssets.forEach(ast => drawDevice(ast));
                 });
-            } else {
-                renderAllDevices();
-            }
+            } else placedAssets.forEach(ast => drawDevice(ast));
         }
 
         canvas.on('mouse:wheel', function(opt) {
@@ -286,157 +316,129 @@
             canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
             opt.e.preventDefault(); opt.e.stopPropagation();
         });
-
         canvas.on('mouse:down', function(opt) {
             if (opt.e.altKey === true) { this.isDragging = true; this.selection = false; this.lastPosX = opt.e.clientX; this.lastPosY = opt.e.clientY; document.getElementById('mainContainer').classList.add('grabbing-cursor'); }
         });
-
         canvas.on('mouse:move', function(opt) {
             if (this.isDragging) { let e = opt.e; let vpt = this.viewportTransform; vpt[4] += e.clientX - this.lastPosX; vpt[5] += e.clientY - this.lastPosY; this.requestRenderAll(); this.lastPosX = e.clientX; this.lastPosY = e.clientY; }
         });
-
         canvas.on('mouse:up', function() { this.setViewportTransform(this.viewportTransform); this.isDragging = false; this.selection = true; document.getElementById('mainContainer').classList.remove('grabbing-cursor'); });
 
         window.onload = initMap; window.onresize = initMap;
 
-        function renderAllDevices() {
-            existingSwitches.forEach(sw => drawDevice(sw, 'switch'));
-            existingPcs.forEach(pc => drawDevice(pc, 'pc'));
-            drawAllCables();
-        }
-
-        function drawDevice(data, type) {
-            let color = type === 'switch' ? '#3b82f6' : '#14b8a6'; 
-            let rect = new fabric.Rect({ width: 80, height: 40, fill: color, rx: type === 'pc'? 20 : 5, ry: type === 'pc'? 20 : 5, originX: 'center', originY: 'center', shadow: new fabric.Shadow({ color: color, blur: 15, offsetX: 0, offsetY: 0 }) });
+        // --- FIXED DRAW DEVICE BARU ---
+        function drawDevice(data) {
+            let color = data.category && data.category.color ? data.category.color : '#3b82f6'; 
+            let iconSize = data.category && data.category.icon_size ? parseInt(data.category.icon_size) : 40;
+            let iconPath = data.category && data.category.icon_path ? '/' + data.category.icon_path : null;
             let shortName = data.name.length > 10 ? data.name.substring(0, 8) + '...' : data.name;
-            let text = new fabric.Text(shortName, { fontSize: 12, fill: '#ffffff', fontFamily: 'sans-serif', originX: 'center', originY: 'center', fontWeight: 'bold' });
-            
-            let posX = data.pos_x ? parseFloat(data.pos_x) : canvas.width/2;
-            let posY = data.pos_y ? parseFloat(data.pos_y) : canvas.height/2;
-
-            let group = new fabric.Group([rect, text], { left: posX, top: posY, originX: 'center', originY: 'center', hasControls: false, hasBorders: true, borderColor: '#facc15', borderDashArray: [5, 5], cornerColor: 'transparent',
-                id: data.id, full_name: data.name, ip_address: data.ip_address, brand_model: data.brand_model, current_user: data.current_user, deviceType: type, 
-                installation_year: data.installation_year, status: data.status // INJEKSI DATA BARU
+            let text = new fabric.Text(shortName, { 
+                fontSize: 12, fill: '#ffffff', fontFamily: 'sans-serif', originX: 'center', originY: 'center', 
+                top: (iconSize / 2) + 12, fontWeight: 'bold', backgroundColor: 'rgba(15, 23, 42, 0.8)' 
             });
-            canvas.add(group);
-        }
+            if (iconPath) {
+                fabric.Image.fromURL(iconPath, function(img) {
+                    let scale = iconSize / Math.max(img.width, img.height);
+                    img.set({ originX: 'center', originY: 'center', scaleX: scale, scaleY: scale });
+                    
+                    // --- SOLUSI ERROR ADA DISINI ---
+                    // Menggunakan properti shadow secara langsung, bukan fungsi .setShadow()
+                    img.shadow = new fabric.Shadow({ color: color, blur: 15, offsetX: 0, offsetY: 0 });
 
-        function drawAllCables() {
-            existingConnections.forEach(conn => {
-                const fromDev = canvas.getObjects('group').find(obj => obj.id == conn.from_id && obj.deviceType === conn.from_type);
-                const toDev = canvas.getObjects('group').find(obj => obj.id == conn.to_id && obj.deviceType === conn.to_type);
-                if (fromDev && toDev) drawCableLine(fromDev, toDev, conn.color, conn.id);
-            });
-        }
-
-        function drawCableLine(fromDev, toDev, color, connId) {
-            let coords = [fromDev.left, fromDev.top, toDev.left, toDev.top];
-            let line = new fabric.Line(coords, { stroke: color, strokeWidth: 4, selectable: false, evented: true, perPixelTargetFind: true, hoverCursor: 'crosshair', fromId: fromDev.id, fromType: fromDev.deviceType, toId: toDev.id, toType: toDev.deviceType, connectionId: connId, isCable: true, shadow: new fabric.Shadow({ color: color, blur: 8, offsetX: 0, offsetY: 0 }) });
-            canvas.add(line); canvas.sendToBack(line);
-        }
-
-
-        canvas.on('object:moving', function(options) {
-            let p = options.target;
-            if (p.deviceType) {
-                const cables = canvas.getObjects('line').filter(l => l.isCable && ((l.fromId == p.id && l.fromType == p.deviceType) || (l.toId == p.id && l.toType == p.deviceType)));
-                cables.forEach(line => {
-                    if (line.fromId == p.id && line.fromType == p.deviceType) { line.set({ x1: p.left, y1: p.top }); } 
-                    if (line.toId == p.id && line.toType == p.deviceType) { line.set({ x2: p.left, y2: p.top }); }
-                }); canvas.renderAll();
+                    let group = new fabric.Group([img, text], { 
+                        left: parseFloat(data.pos_x), top: parseFloat(data.pos_y), 
+                        originX: 'center', originY: 'center', hasControls: false, hasBorders: true, 
+                        borderColor: color, borderDashArray: [5, 5], cornerColor: 'transparent',
+                        id: data.id, fullData: data, deviceType: 'asset' 
+                    });
+                    canvas.add(group);
+                });
+            } else {
+                let rect = new fabric.Rect({ 
+                    width: iconSize, height: iconSize, fill: color, rx: 8, ry: 8, originX: 'center', originY: 'center', 
+                    shadow: new fabric.Shadow({ color: color, blur: 15, offsetX: 0, offsetY: 0 }) 
+                });
+                let group = new fabric.Group([rect, text], { 
+                    left: parseFloat(data.pos_x), top: parseFloat(data.pos_y), originX: 'center', originY: 'center', 
+                    hasControls: false, hasBorders: true, borderColor: color, borderDashArray: [5, 5], cornerColor: 'transparent',
+                    id: data.id, fullData: data, deviceType: 'asset' 
+                });
+                canvas.add(group);
             }
-        });
+        }
 
         canvas.on('object:modified', function(options) {
             let obj = options.target;
-            let endpoint = obj.deviceType === 'switch' ? '/switch/update-position' : '/pc/update-position';
-            fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken }, body: JSON.stringify({ id: obj.id, pos_x: obj.left, pos_y: obj.top }) });
-        });
-
-        let selectedDevId = null; let selectedDevType = null; let selectedCableId = null; let selectedObj = null; let lastClickTime = 0;
-
-        canvas.on('mouse:down', function(options) {
-            if(options.e.altKey) return; 
-            
-            let obj = options.target; let currentTime = new Date().getTime();
-            if (obj && obj.deviceType) {
-                if (isCableMode) {
-                    if (!cableSourceId) {
-                        cableSourceId = obj.id; cableSourceType = obj.deviceType;
-                        document.getElementById('cableStatus').innerText = "⚡ Pilih Target Tujuan..."; obj.set('borderColor', '#facc15').set('hasBorders', true); canvas.renderAll();
-                    } else if (cableSourceId === obj.id && cableSourceType === obj.deviceType) {
-                        obj.set('hasBorders', false); cableSourceId = null; cableSourceType = null;
-                        document.getElementById('cableStatus').innerText = "⚡ Menunggu Perangkat Pertama..."; canvas.renderAll();
-                    } else { connectCable(cableSourceId, cableSourceType, obj.id, obj.deviceType); }
-                    return; 
-                }
-
-                if (currentTime - lastClickTime < 300) {
-                    document.getElementById('modalName').innerText = obj.full_name || 'Tanpa Nama';
-                    document.getElementById('modalIp').innerText = obj.ip_address || '-';
-                    document.getElementById('modalYear').innerText = obj.installation_year || '-';
-
-                    if(obj.deviceType === 'switch') { 
-                        document.getElementById('wrapperBrand').classList.remove('hidden'); document.getElementById('wrapperUser').classList.add('hidden'); 
-                        document.getElementById('modalBrand').innerText = obj.brand_model || '-'; 
-                        document.getElementById('wrapperStatus').classList.add('hidden');
-                    }
-                    if(obj.deviceType === 'pc') { 
-                        document.getElementById('wrapperUser').classList.remove('hidden'); document.getElementById('wrapperBrand').classList.add('hidden'); 
-                        document.getElementById('modalUser').innerText = obj.current_user || '-'; 
-                        document.getElementById('wrapperStatus').classList.remove('hidden');
-                        document.getElementById('modalStatus').innerText = obj.status || '-';
-                    }
-                    selectedDevId = obj.id; selectedDevType = obj.deviceType; selectedObj = obj; document.getElementById('deviceModal').classList.remove('hidden');
-                }
-                lastClickTime = currentTime;
-            } else if (obj && obj.isCable && !isCableMode) {
-                if (currentTime - lastClickTime < 300) { selectedCableId = obj.connectionId; selectedObj = obj; document.getElementById('cableModal').classList.remove('hidden'); }
-                lastClickTime = currentTime;
-            } else { resetCableModeHighlight(); }
-        });
-
-        function connectCable(fromId, fromType, toId, toType) {
-            fetch('/connection', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken }, body: JSON.stringify({ from_id: fromId, from_type: fromType, to_id: toId, to_type: toType }) })
-            .then(res => res.json()).then(r => {
-                if(r.success) {
-                    const fromDev = canvas.getObjects('group').find(o => o.id == fromId && o.deviceType === fromType);
-                    const toDev = canvas.getObjects('group').find(o => o.id == toId && o.deviceType === toType);
-                    drawCableLine(fromDev, toDev, r.data.color, r.data.id); showNotification('Link Established!', 'border-green-500 text-green-100 bg-green-900/80');
-                } resetCableModeHighlight();
-            });
-        }
-
-        function resetCableModeHighlight() {
-            if (isCableMode && cableSourceId) { const sourceObj = canvas.getObjects('group').find(o => o.id == cableSourceId && o.deviceType === cableSourceType); if (sourceObj) sourceObj.set('hasBorders', false); cableSourceId = null; cableSourceType = null; document.getElementById('cableStatus').innerText = "⚡ Menunggu Perangkat Pertama..."; canvas.renderAll(); }
-        }
-
-        document.getElementById('btnCableMode').addEventListener('click', function() {
-            isCableMode = !isCableMode;
-            if (isCableMode) { this.classList.replace('bg-slate-800', 'bg-yellow-600/20'); this.classList.replace('border-slate-600', 'border-yellow-500'); this.classList.replace('text-slate-300', 'text-yellow-400'); document.getElementById('cableText').innerText = "Cancel Routing"; document.getElementById('cableIcon').innerText = "❌"; document.getElementById('cableStatus').classList.remove('hidden'); document.getElementById('cableStatus').classList.add('flex');
-            } else { this.classList.replace('bg-yellow-600/20', 'bg-slate-800'); this.classList.replace('border-yellow-500', 'border-slate-600'); this.classList.replace('text-yellow-400', 'text-slate-300'); document.getElementById('cableText').innerText = "Mode Tarik Kabel"; document.getElementById('cableIcon').innerText = "🔌"; document.getElementById('cableStatus').classList.add('hidden'); document.getElementById('cableStatus').classList.remove('flex'); resetCableModeHighlight(); }
-        });
-
-        document.getElementById('closeModal').addEventListener('click', () => document.getElementById('deviceModal').classList.add('hidden'));
-        document.getElementById('closeCableModal').addEventListener('click', () => document.getElementById('cableModal').classList.add('hidden'));
-
-        document.getElementById('btnDeleteDevice').addEventListener('click', function() {
-            let endpoint = selectedDevType === 'switch' ? '/switch/' : '/pc/';
-            if(selectedDevId) {
-                fetch(endpoint + selectedDevId, { method: 'DELETE', headers: { 'X-CSRF-TOKEN': csrfToken } }).then(res => res.json()).then(r => {
-                    if(r.success) {
-                        const cables = canvas.getObjects('line').filter(l => l.isCable && ((l.fromId == selectedDevId && l.fromType == selectedDevType) || (l.toId == selectedDevId && l.toType == selectedDevType)));
-                        cables.forEach(c => canvas.remove(c)); canvas.remove(selectedObj); document.getElementById('deviceModal').classList.add('hidden'); selectedDevId = null; canvas.renderAll(); showNotification('Perangkat Dihapus!', 'border-red-500 text-red-100 bg-red-900/80');
-                    }
-                });
+            if(obj.deviceType === 'asset') {
+                fetch('/mapping/asset/update-position', { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrfToken }, 
+                    body: JSON.stringify({ id: obj.id, pos_x: obj.left, pos_y: obj.top }) 
+                }).then(res => res.json()).catch(err => console.error(err));
             }
         });
 
-        document.getElementById('btnDeleteCable').addEventListener('click', function() {
-            if(selectedCableId) {
-                fetch('/connection/' + selectedCableId, { method: 'DELETE', headers: { 'X-CSRF-TOKEN': csrfToken } }).then(res => res.json()).then(r => {
-                    if(r.success) { canvas.remove(selectedObj); document.getElementById('cableModal').classList.add('hidden'); selectedCableId = null; canvas.renderAll(); showNotification('Koneksi Diputus!', 'border-yellow-500 text-yellow-100 bg-yellow-900/80'); }
-                });
+        let selectedDevId = null; let selectedObj = null; let lastClickTime = 0;
+        canvas.on('mouse:down', function(options) {
+            if(options.e.altKey) return; 
+            let obj = options.target; let currentTime = new Date().getTime();
+            if (obj && obj.deviceType === 'asset') {
+                if (currentTime - lastClickTime < 300) {
+                    let d = obj.fullData; selectedDevId = d.id; selectedObj = obj;
+                    let ipAddr = d.ip_address ? d.ip_address.ip_address : (d.ipAddress ? d.ipAddress.ip_address : null);
+                    let color = d.category && d.category.color ? d.category.color : '#3b82f6';
+                    let iconPath = d.category && d.category.icon_path ? '/' + d.category.icon_path : null;
+                    document.getElementById('modalDevName').innerText = d.name || 'Tanpa Nama';
+                    document.getElementById('modalDevType').innerText = (d.category ? d.category.name : 'Unknown') + ' | ' + (d.asset_code || '-');
+                    document.getElementById('modalDevType').style.color = color;
+                    let iconEl = document.getElementById('modalDevIcon');
+                    if(iconPath) { iconEl.innerHTML = `<img src="${iconPath}" class="w-10 h-10 object-contain drop-shadow-md">`; iconEl.style.backgroundColor = color + '20'; iconEl.style.borderColor = color + '50'; }
+                    else { iconEl.innerHTML = '📦'; iconEl.style.backgroundColor = '#312e81'; iconEl.style.borderColor = '#6366f1'; }
+                    let html = `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">`;
+                    if(ipAddr) html += `<div class="md:col-span-2 bg-slate-900/60 p-3 rounded-lg border border-slate-800"><span class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">IP Address</span><span class="font-mono text-emerald-400 font-bold text-lg">${ipAddr}</span></div>`;
+                    html += `<div class="bg-slate-900/60 p-3 rounded-lg border border-slate-800"><span class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Merek / Model</span><span class="font-semibold text-white">${d.brand_model || '-'}</span></div>`;
+                    html += `<div class="bg-slate-900/60 p-3 rounded-lg border border-slate-800"><span class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Status</span><span class="font-black text-teal-400 uppercase">${d.status || '-'}</span></div>`;
+                    html += `<div class="bg-slate-900/60 p-3 rounded-lg border border-slate-800"><span class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Pengguna</span><span class="font-semibold text-amber-400">${d.current_user || '-'}</span></div>`;
+                    html += `<div class="bg-slate-900/60 p-3 rounded-lg border border-slate-800"><span class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Tahun Pasang</span><span class="font-semibold text-white">${d.installation_year || '-'}</span></div>`;
+                    html += `</div>`;
+                    if (d.category && d.category.fields && d.values && d.values.length > 0) {
+                        html += `<h3 class="text-[10px] font-black uppercase tracking-widest border-b border-slate-700 pb-2 mt-6 pt-2" style="color: ${color}">Spesifikasi Detail</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">`;
+                        d.category.fields.forEach(f => {
+                            let valObj = d.values.find(v => v.category_field_id === f.id);
+                            html += `<div class="bg-slate-800/30 p-3 rounded-lg border border-slate-700/50"><span class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">${f.field_name}</span><span class="font-semibold text-blue-100 break-words">${valObj ? valObj.value : '-'}</span></div>`;
+                        });
+                        html += `</div>`;
+                    }
+                    html += `<div class="bg-slate-800/50 p-3 rounded-lg border border-slate-700 mt-4"><span class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Catatan</span><span class="text-xs text-slate-400 break-words">${d.description || '-'}</span></div>`;
+                    document.getElementById('modalDynamicContent').innerHTML = html;
+                    document.getElementById('btnEditAsset').href = `/inventory/${d.id}/edit`;
+                    document.getElementById('deviceModal').children[0].style.borderTopColor = color; modalDevIcon.style.color = color;
+                    document.getElementById('deviceModal').classList.remove('hidden');
+                    setTimeout(() => { deviceModal.classList.remove('opacity-0'); deviceModal.querySelector('div').classList.remove('scale-95'); }, 10);
+                }
+                lastClickTime = currentTime;
+            }
+        });
+
+        document.getElementById('closeModal').addEventListener('click', () => {
+            deviceModal.classList.add('opacity-0'); deviceModal.querySelector('div').classList.add('scale-95');
+            setTimeout(() => { deviceModal.classList.add('hidden'); }, 300);
+        });
+
+        document.getElementById('btnDeleteAsset').addEventListener('click', async function() {
+            if(selectedDevId && confirm('Aset akan dihapus permanen. Lanjutkan?')) {
+                try {
+                    const res = await fetch(`/inventory/${selectedDevId}`, {
+                        method: 'DELETE',
+                        headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' }
+                    });
+                    const r = await res.json();
+                    if(r.success) {
+                        showNotification('Aset dimusnahkan!', 'border-red-500 text-red-100 bg-red-900/80');
+                        document.getElementById('deviceModal').classList.add('hidden');
+                        canvas.remove(selectedObj); canvas.renderAll();
+                    } else showNotification(r.message, 'border-red-500');
+                } catch(err) { showNotification('Gagal terhubung ke markas', 'border-red-500'); }
             }
         });
 

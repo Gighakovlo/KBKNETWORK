@@ -15,15 +15,9 @@ class Floor extends Model
         return $this->belongsTo(Building::class);
     }
 
-    // Kasih tahu kalau 1 Lantai punya banyak Switch
-    public function switchNodes()
+   // Relasi Baru: Satu lantai memiliki banyak aset (The Great Merge)
+    public function assets()
     {
-        return $this->hasMany(SwitchNode::class);
-    }
-
-    // Tambahkan ini di bagian bawah sebelum kurung kurawal penutup
-    public function pcNodes()
-    {
-        return $this->hasMany(PcNode::class);
+        return $this->hasMany(\App\Models\Asset::class, 'floor_id');
     }
 }

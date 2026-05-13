@@ -1,46 +1,36 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Data {{ $category->name }} - KBK</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { background-color: #0b1120; }
-        .glass-panel { background: rgba(30, 41, 59, 0.4); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
-        .custom-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
-    </style>
-</head>
-<body class="text-slate-300 font-sans h-screen flex flex-col overflow-hidden">
+@extends('layouts.itam')
 
-    <nav class="p-6 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 flex justify-between items-center z-20 shadow-xl">
-        <div class="flex items-center gap-6">
-            <a href="{{ route('inventory.index') }}" class="text-slate-500 hover:text-white font-bold transition flex items-center gap-2">
+@section('title', 'Data ' . $category->name . ' - ITAM KBK')
+
+@section('content')
+    <nav class="p-6 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 flex justify-between items-center z-20 shadow-lg">
+        <div class="flex items-center gap-4">
+            <a href="{{ route('inventory.index') }}" class="text-slate-500 hover:text-white font-bold transition flex items-center gap-2 mr-2">
                 <span class="text-xl">&larr;</span> Kembali
             </a>
-            <div class="h-8 w-px bg-slate-700"></div>
+            <div class="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
             <div>
-                <h1 class="text-2xl font-black text-white uppercase tracking-widest drop-shadow-md">Data {{ $category->name }}</h1>
-                <p class="text-blue-400 text-xs mt-1 font-bold tracking-wide uppercase">Kode Prefix: {{ $category->prefix }}-XXXX</p>
+                <h2 class="text-lg font-black text-white uppercase tracking-widest">Data {{ $category->name }}</h2>
+                <p class="text-blue-400 text-[10px] mt-1 font-bold tracking-wide uppercase">Kode Prefix: {{ $category->prefix }}-XXXX</p>
             </div>
         </div>
+        
         <div class="flex items-center gap-4">
             <div class="flex items-center gap-2">
                 <label class="text-[10px] font-bold text-slate-500 uppercase">Show:</label>
-                <select onchange="window.location.href='?per_page=' + this.value" class="bg-slate-900 border border-slate-700 text-white px-2 py-2 rounded-xl text-xs focus:outline-none transition-all cursor-pointer">
+                <select onchange="window.location.href='?per_page=' + this.value + '&search={{ $search ?? '' }}&sort={{ $sort ?? 'desc' }}'" class="bg-slate-900 border border-slate-700 text-white px-2 py-2 rounded-xl text-xs focus:outline-none transition-all cursor-pointer">
                     <option value="10" {{ $perPage == 10 ? 'selected' : '' }}>10</option>
                     <option value="50" {{ $perPage == 50 ? 'selected' : '' }}>50</option>
                     <option value="100" {{ $perPage == 100 ? 'selected' : '' }}>100</option>
                 </select>
             </div>
             
-            <div class="relative group">
-                <input type="text" id="searchInput" placeholder="Cari aset..." class="bg-slate-900 border border-slate-700 text-white px-4 py-2 rounded-xl text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 w-64 transition-all shadow-inner placeholder-slate-500">
-                <span class="absolute right-3 top-2 text-slate-500 group-focus-within:text-blue-500 transition-colors">🔍</span>
-            </div>
+            <form action="{{ route('inventory.category', $category->id) }}" method="GET" class="relative group">
+                <input type="hidden" name="per_page" value="{{ $perPage }}">
+                <input type="hidden" name="sort" value="{{ $sort ?? 'desc' }}">
+                <input type="text" name="search" value="{{ $search ?? '' }}" placeholder="Cari di kategori ini..." class="bg-slate-900 border border-slate-700 text-white px-4 py-2 rounded-xl text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 w-64 transition-all shadow-inner placeholder-slate-500">
+                <button type="submit" class="absolute right-3 top-2 text-slate-500 hover:text-blue-500 transition-colors">🔍</button>
+            </form>
 
             <button id="btnBulkDelete" class="hidden bg-red-600/20 border border-red-500 text-red-400 hover:bg-red-600 hover:text-white px-4 py-2 rounded-xl font-bold transition flex items-center gap-2 text-sm shadow-[0_0_15px_rgba(220,38,38,0.2)]">
                 🗑️ Hapus (<span id="selectedCount">0</span>)
@@ -57,14 +47,28 @@
 
     <main class="flex-grow p-8 overflow-hidden flex flex-col">
         <div class="glass-panel rounded-2xl flex-grow overflow-hidden flex flex-col shadow-2xl border border-slate-700/50">
-            
             <div class="overflow-x-auto overflow-y-auto custom-scrollbar flex-grow p-4">
                 <table class="w-full text-left text-sm whitespace-nowrap">
                     <thead class="text-slate-300 uppercase tracking-widest text-[10px] border-b-2 border-slate-600 bg-slate-900 sticky top-0 z-10 shadow-md">
                         <tr>
                             <th class="p-4 rounded-tl-lg w-10"><input type="checkbox" id="selectAll" class="w-4 h-4 rounded bg-slate-900 border-slate-600 text-blue-600 focus:ring-blue-500 cursor-pointer"></th>
-                            <th class="p-4 font-bold">ID Barang</th>
+                            
+                            <th class="p-4 font-bold">
+                                <div class="flex items-center gap-2">
+                                    ID Barang
+                                    <div class="flex flex-col text-[8px]">
+                                        <a href="?per_page={{ $perPage }}&search={{ $search ?? '' }}&sort=asc" class="{{ ($sort ?? '') == 'asc' ? 'text-blue-500' : 'text-slate-500 hover:text-white' }} leading-none">▲</a>
+                                        <a href="?per_page={{ $perPage }}&search={{ $search ?? '' }}&sort=desc" class="{{ ($sort ?? 'desc') == 'desc' ? 'text-blue-500' : 'text-slate-500 hover:text-white' }} leading-none">▼</a>
+                                    </div>
+                                </div>
+                            </th>
+                            
                             <th class="p-4 font-bold">Nama (Hostname)</th>
+
+                            @if($category->has_ip)
+                                <th class="p-4 font-bold text-emerald-400">IP Address</th>
+                            @endif
+
                             <th class="p-4 font-bold">Merek / Model</th>
                             <th class="p-4 font-bold">Lokasi</th>
                             <th class="p-4 font-bold">Pengguna</th>
@@ -74,6 +78,7 @@
                                 <th class="p-4 font-bold text-blue-400">{{ $field->field_name }}</th>
                             @endforeach
                             
+                            <th class="p-4 font-bold text-amber-400">Keterangan</th>
                             <th class="p-4 font-bold text-right rounded-tr-lg">Aksi</th>
                         </tr>
                     </thead>
@@ -85,6 +90,13 @@
                                 </td>
                                 <td class="p-4 font-mono font-bold text-emerald-400">{{ $asset->asset_code }}</td>
                                 <td class="p-4 font-bold text-white">{{ $asset->name }}</td>
+
+                                @if($category->has_ip)
+                                    <td class="p-4 font-mono font-bold text-emerald-300">
+                                        {{ $asset->ipAddress->ip_address ?? '-' }}
+                                    </td>
+                                @endif
+
                                 <td class="p-4">{{ $asset->brand_model ?? '-' }}</td>
                                 <td class="p-4 text-xs">
                                     @if($asset->building)
@@ -104,11 +116,11 @@
                                 </td>
 
                                 @foreach($category->fields as $field)
-                                    @php
-                                        $valObj = $asset->values->firstWhere('category_field_id', $field->id);
-                                    @endphp
+                                    @php $valObj = $asset->values->firstWhere('category_field_id', $field->id); @endphp
                                     <td class="p-4 text-blue-100">{{ $valObj ? $valObj->value : '-' }}</td>
                                 @endforeach
+
+                                <td class="p-4 text-xs text-slate-400 max-w-[200px] truncate" title="{{ $asset->description }}">{{ $asset->description ?? '-' }}</td>
 
                                 <td class="p-4 text-right space-x-2">
                                     <a href="{{ route('inventory.edit', $asset->id) }}" class="text-blue-400 hover:text-blue-300 font-bold px-3 py-1 rounded border border-blue-900/50 hover:bg-blue-900/20 transition text-xs inline-block">Edit</a>
@@ -117,8 +129,13 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ 8 + $category->fields->count() }}" class="p-10 text-center text-slate-500 font-bold">
-                                    Belum ada data perangkat di kategori ini.
+                                @php $colCount = 9 + $category->fields->count() + ($category->has_ip ? 1 : 0); @endphp
+                                <td colspan="{{ $colCount }}" class="p-10 text-center text-slate-500 font-bold">
+                                    @if(!empty($search))
+                                        Tidak ada perangkat yang cocok dengan pencarian "{{ $search }}".
+                                    @else
+                                        Belum ada data perangkat di kategori ini.
+                                    @endif
                                 </td>
                             </tr>
                         @endforelse
@@ -130,140 +147,93 @@
             </div>
         </div>
     </main>
-    
-    <div id="toast" class="fixed top-4 right-4 px-6 py-3 rounded-lg shadow-2xl transition-all duration-300 opacity-0 z-[9999] font-bold text-sm text-white transform -translate-y-4 pointer-events-none"></div>
 
     <div id="importModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm hidden flex justify-center items-center z-50">
         <div class="glass-panel p-8 rounded-2xl shadow-2xl border-t-4 border-amber-500 w-full max-w-md relative">
             <button onclick="document.getElementById('importModal').classList.add('hidden')" class="absolute top-4 right-5 text-slate-500 hover:text-red-400 font-black text-xl transition">&times;</button>
-            
             <h2 class="text-xl font-black text-white mb-2">Import Data {{ $category->name }}</h2>
             <p class="text-xs text-slate-400 mb-6 border-b border-slate-700 pb-4">Unduh template, isi data perangkat, lalu unggah kembali ke sistem.</p>
-            
             <a href="{{ route('inventory.template', $category->id) }}" class="w-full block text-center bg-slate-800 border border-blue-500/50 text-blue-400 hover:bg-blue-600 hover:text-white py-3 rounded-lg font-bold transition text-sm mb-6">
                 📄 Download Template Excel Kosong
             </a>
-
             <form action="{{ route('inventory.import', $category->id) }}" method="POST" enctype="multipart/form-data" class="space-y-4">
                 @csrf
                 <div>
                     <label class="block text-xs font-bold text-slate-400 mb-2">Upload File Excel (.xlsx)</label>
                     <input type="file" name="excel_file" required accept=".xlsx, .xls" class="w-full bg-slate-900 border border-slate-700 text-slate-300 px-4 py-2 rounded-lg text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-bold file:bg-amber-600 file:text-white hover:file:bg-amber-500 cursor-pointer">
                 </div>
-                
                 <button type="submit" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-black uppercase tracking-widest py-3 rounded-lg shadow-[0_0_15px_rgba(245,158,11,0.3)] transition-all">
                     Mulai Import Data
                 </button>
             </form>
         </div>
     </div>
+@endsection
 
-    <script>
-        function showToast(msg, colorClass) {
-            const t = document.getElementById('toast');
+@push('scripts')
+<script>
+    function showToast(msg, colorClass) {
+        const t = document.getElementById('toast');
+        if(t) {
             t.innerText = msg;
-            t.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-2xl transition-all duration-300 z-[9999] font-bold text-sm text-white transform translate-y-0 opacity-100 ${colorClass}`;
+            t.className = `fixed top-6 right-6 px-6 py-4 rounded-xl shadow-2xl transition-all duration-300 z-[9999] font-bold text-sm text-white transform translate-y-0 opacity-100 ${colorClass}`;
             setTimeout(() => { t.classList.remove('translate-y-0', 'opacity-100'); t.classList.add('-translate-y-4', 'opacity-0'); }, 4000);
         }
+    }
 
-        @if(session('success'))
-            showToast("{{ session('success') }}", 'bg-emerald-600');
-        @endif
-        
-        @if(session('error'))
-            showToast("{!! addslashes(session('error')) !!}", 'bg-red-600');
-        @endif
+    @if(session('success')) showToast("{{ session('success') }}", 'bg-emerald-600'); @endif
+    @if(session('error')) showToast("{!! addslashes(session('error')) !!}", 'bg-red-600'); @endif
 
-        // Fitur Live Search Table
-        document.getElementById('searchInput').addEventListener('keyup', function() {
-            let filter = this.value.toLowerCase();
-            let rows = document.querySelectorAll('#tableBody tr');
-            
-            rows.forEach(row => {
-                if(row.innerText.includes("Belum ada data perangkat")) return;
-                let text = row.innerText.toLowerCase();
-                if(text.includes(filter)) { row.style.display = ''; } 
-                else { row.style.display = 'none'; }
-            });
-        });
-
-        // Hapus Satuan
-        async function confirmDelete(id, code) {
-            if (confirm(`Peringatan Keras! Yakin ingin menghapus aset ${code}? Data spesifikasi di dalamnya juga akan hilang permanen.`)) {
-                try {
-                    const response = await fetch(`/inventory/${id}`, {
-                        method: 'DELETE',
-                        headers: {
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                            'Accept': 'application/json'
-                        }
-                    });
-                    
-                    const r = await response.json();
-                    if(r.success) {
-                        showToast(r.message, 'bg-emerald-600');
-                        setTimeout(() => location.reload(), 1000);
-                    } else {
-                        showToast(r.message, 'bg-red-600');
-                    }
-                } catch (err) { showToast('Gagal terhubung ke server.', 'bg-red-600'); }
-            }
-        }
-
-        // Fitur Bulk Delete (Pemusnah Massal)
-        const selectAll = document.getElementById('selectAll');
-        const rowCheckboxes = document.querySelectorAll('.row-checkbox');
-        const btnBulkDelete = document.getElementById('btnBulkDelete');
-        const selectedCount = document.getElementById('selectedCount');
-
-        function updateBulkDeleteUI() {
-            const checkedBoxes = Array.from(rowCheckboxes).filter(cb => cb.checked && cb.closest('tr').style.display !== 'none');
-            if (checkedBoxes.length > 0) {
-                btnBulkDelete.classList.remove('hidden');
-                selectedCount.innerText = checkedBoxes.length;
-            } else {
-                btnBulkDelete.classList.add('hidden');
-            }
-        }
-
-        if (selectAll) {
-            selectAll.addEventListener('change', function() {
-                rowCheckboxes.forEach(cb => {
-                    if (cb.closest('tr').style.display !== 'none') { cb.checked = selectAll.checked; }
+    async function confirmDelete(id, code) {
+        if (confirm(`Peringatan Keras! Yakin ingin menghapus aset ${code}? Data spesifikasi di dalamnya juga akan hilang permanen.`)) {
+            try {
+                const response = await fetch(`/inventory/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'), 'Accept': 'application/json' }
                 });
-                updateBulkDeleteUI();
-            });
+                const r = await response.json();
+                if(r.success) { showToast(r.message, 'bg-emerald-600'); setTimeout(() => location.reload(), 1000); } 
+                else { showToast(r.message, 'bg-red-600'); }
+            } catch (err) { showToast('Gagal terhubung ke server.', 'bg-red-600'); }
         }
+    }
 
-        rowCheckboxes.forEach(cb => { cb.addEventListener('change', updateBulkDeleteUI); });
+    const selectAll = document.getElementById('selectAll');
+    const rowCheckboxes = document.querySelectorAll('.row-checkbox');
+    const btnBulkDelete = document.getElementById('btnBulkDelete');
+    const selectedCount = document.getElementById('selectedCount');
 
-        if (btnBulkDelete) {
-            btnBulkDelete.addEventListener('click', async function() {
-                const selectedIds = Array.from(rowCheckboxes)
-                                         .filter(cb => cb.checked && cb.closest('tr').style.display !== 'none')
-                                         .map(cb => cb.value);
+    function updateBulkDeleteUI() {
+        const checkedBoxes = Array.from(rowCheckboxes).filter(cb => cb.checked);
+        if (checkedBoxes.length > 0) { btnBulkDelete.classList.remove('hidden'); selectedCount.innerText = checkedBoxes.length; } 
+        else { btnBulkDelete.classList.add('hidden'); }
+    }
 
-                if (confirm(`PERINGATAN KERAS! Anda yakin ingin menghapus ${selectedIds.length} aset secara permanen?`)) {
-                    try {
-                        const response = await fetch('{{ route('inventory.bulkDelete') }}', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                                'Accept': 'application/json'
-                            },
-                            body: JSON.stringify({ ids: selectedIds })
-                        });
-                        
-                        const r = await response.json();
-                        if (r.success) {
-                            showToast(r.message, 'bg-emerald-600');
-                            setTimeout(() => location.reload(), 1500);
-                        } else { showToast(r.message, 'bg-red-600'); }
-                    } catch (err) { showToast('Gagal terhubung ke markas.', 'bg-red-600'); }
-                }
-            });
-        }
-    </script>                                                  
-</body>
-</html>
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            rowCheckboxes.forEach(cb => { cb.checked = selectAll.checked; });
+            updateBulkDeleteUI();
+        });
+    }
+
+    rowCheckboxes.forEach(cb => { cb.addEventListener('change', updateBulkDeleteUI); });
+
+    if (btnBulkDelete) {
+        btnBulkDelete.addEventListener('click', async function() {
+            const selectedIds = Array.from(rowCheckboxes).filter(cb => cb.checked).map(cb => cb.value);
+            if (confirm(`PERINGATAN KERAS! Anda yakin ingin menghapus ${selectedIds.length} aset secara permanen?`)) {
+                try {
+                    const response = await fetch('{{ route('inventory.bulkDelete') }}', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'), 'Accept': 'application/json' },
+                        body: JSON.stringify({ ids: selectedIds })
+                    });
+                    const r = await response.json();
+                    if (r.success) { showToast(r.message, 'bg-emerald-600'); setTimeout(() => location.reload(), 1500); } 
+                    else { showToast(r.message, 'bg-red-600'); }
+                } catch (err) { showToast('Gagal terhubung ke markas.', 'bg-red-600'); }
+            }
+        });
+    }
+</script>
+@endpush

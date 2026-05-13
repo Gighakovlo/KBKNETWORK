@@ -60,19 +60,14 @@ class IpAddressController extends Controller
     // 3. Hapus IP
     public function destroy($id)
     {
-        try {
-            $ip = IpAddress::findOrFail($id);
-            if ($ip->status === 'in_use') {
-                return response()->json(['success' => false, 'message' => "IP {$ip->ip_address} sedang dipakai oleh aset. Lepaskan dulu sebelum dihapus!"], 403);
-            }
-            
-            $ipAddressStr = $ip->ip_address;
-            $ip->delete();
-            
-            return response()->json(['success' => true, 'message' => "IP {$ipAddressStr} telah dihapus dari sistem!"]);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Gagal menghapus: ' . $e->getMessage()], 500);
-        }
+        $ip = IpAddress::findOrFail($id);
+        
+        // KITA CABUT LOGIKA PENGECEKAN 'IN_USE' DI SINI
+        // Agar Tuan Gigha bebas menghapus IP sampah apapun secara paksa!
+        
+        $ip->delete();
+
+        return response()->json(['success' => true, 'message' => 'IP Address berhasil dimusnahkan permanen!']);
     }
 
     // 4. Update Data IP Address

@@ -26,9 +26,6 @@
             </div>
         </div>
         <div class="flex items-center gap-4">
-            <a href="/management" class="text-slate-300 hover:text-white font-bold px-5 py-2 border border-slate-700 hover:bg-slate-800 rounded-xl transition-all duration-300 flex items-center gap-2">
-                ⚙️ Data Management
-            </a>
             <form action="/logout" method="POST">
                 @csrf
                 <button type="submit" class="text-slate-400 font-bold px-6 py-2 border border-slate-700 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/50 rounded-xl transition-all duration-300">LOGOUT</button>

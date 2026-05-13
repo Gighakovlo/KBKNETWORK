@@ -5,180 +5,141 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Building;
 use App\Models\Floor;
-use App\Models\BackboneConnection;
-
+use App\Models\Asset; // Pastikan Model Asset dipanggil
 
 class LocationController extends Controller
 {
-    // 1. Tampilkan halaman Dashboard (Lobby)
+    // 1. Tampilkan halaman Dashboard (Lobby / HUB)
     public function hub()
     {
         // Panggil semua gedung BESERTA data lantainya (Eager Loading)
         $buildings = Building::with('floors')->get(); 
         
-        return view('hub', compact('buildings'));
+        // --- STATISTIK UNTUK DASHBOARD ---
+        // Hitung total aset per jenis (opsional, jika dashboard Tuan membutuhkan angka-angka ini)
+        $totalSwitches = Asset::whereHas('category', function($q) { $q->where('prefix', 'like', '%SWT%')->orWhere('name', 'like', '%Switch%'); })->count();
+        $totalPcs = Asset::whereHas('category', function($q) { $q->where('prefix', 'like', '%PC%'); })->count();
+        $totalAssets = Asset::count();
+        
+        return view('hub', compact('buildings', 'totalSwitches', 'totalPcs', 'totalAssets'));
     }
 
     // --- 2. Fungsi untuk Live Monitor (Read-Only Full Data) ---
     public function liveMonitor()
     {
-        // Tetap menggunakan Eager Loading yang super lengkap
-        $buildings = Building::with(['floors.switchNodes', 'floors.pcNodes'])->get();
-        $backbones = BackboneConnection::all();
+        // THE GREAT MERGE APPLIED: Tarik relasi 'assets' beserta kategori dan IP
+        $buildings = Building::with(['floors.assets.category', 'floors.assets.ipAddress'])->get();
         
-        return view('dashboard', compact('buildings', 'backbones')); 
-        // (Sementara kita arahkan ke view dashboard lama Tuan dulu untuk Live Monitor)
+        // Cukup kirimkan variabel buildings saja ke view
+        return view('dashboard', compact('buildings')); 
     }
 
     // --- 3. Fungsi untuk Macro Editor (Polygon Mapping) ---
     public function macroEditor()
     {
-        // Editor Makro tidak butuh data Switch/PC, cukup data Gedung saja agar ringan
+        // Editor Makro tidak butuh data Aset, cukup data Gedung saja agar ringan
         $buildings = Building::all(); 
-        
         return view('macro_editor', compact('buildings'));
     }
 
     // --- 4. Fungsi untuk Micro Studio (Split Screen) ---
     public function microStudio($building_id)
     {
-        // Cari gedung berdasarkan ID, dan bawa serta data lantainya
         $building = Building::with('floors')->findOrFail($building_id);
-        
         return view('micro_studio', compact('building'));
     }
 
-    // 2. Simpan data Gedung Baru
-    // 2. Simpan data Gedung Baru (Mode Polygon)
+    // 5. Simpan data Gedung Baru (Mode Polygon)
     public function storeBuilding(Request $request)
     {
-        // 1. Validasi
         $request->validate([
             'name' => 'required|string|max:255',
-            'polygon_points' => 'required|string' // Wajib ada data polygon-nya
+            'polygon_points' => 'required|string'
         ]);
 
-        // 2. Konversi JSON titik polygon menjadi Array PHP
         $points = json_decode($request->polygon_points, true);
 
-        // 3. MATEMATIKA CERDAS: Mencari titik tengah (Center Point) dari Polygon
-        // Ini berguna untuk menaruh Label Nama Gedung persis di tengah-tengah bentuk
-        $minX = min(array_column($points, 'x'));
-        $maxX = max(array_column($points, 'x'));
-        $minY = min(array_column($points, 'y'));
-        $maxY = max(array_column($points, 'y'));
+        // MATEMATIKA CERDAS: Mencari titik tengah polygon
+        $minX = min(array_column($points, 'x')); $maxX = max(array_column($points, 'x'));
+        $minY = min(array_column($points, 'y')); $maxY = max(array_column($points, 'y'));
         
-        $centerX = $minX + (($maxX - $minX) / 2);
-        $centerY = $minY + (($maxY - $minY) / 2);
+        $centerX = $minX + (($maxX - $minX) / 2); $centerY = $minY + (($maxY - $minY) / 2);
 
-        // 4. Simpan ke database
         $building = Building::create([
             'name' => $request->name,
-            'pos_x' => $centerX, // Otomatis di tengah polygon
-            'pos_y' => $centerY, // Otomatis di tengah polygon
-            'polygon_points' => $request->polygon_points, // Simpan bentuk aslinya
+            'pos_x' => $centerX, 
+            'pos_y' => $centerY, 
+            'polygon_points' => $request->polygon_points, 
         ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Gedung ' . $building->name . ' berhasil dipetakan!',
-            'building' => $building
-        ]);
+        return response()->json(['success' => true, 'message' => 'Gedung ' . $building->name . ' berhasil dipetakan!', 'building' => $building]);
     }
+
     public function storeFloor(Request $request)
     {
         $request->validate([
             'building_id' => 'required|exists:buildings,id',
             'name' => 'required|string|max:255',
             'image' => 'required|image|mimes:jpeg,png,jpg|max:5120',
-            'box_width' => 'required',
-            'box_height' => 'required',
-            'box_left' => 'required',
-            'box_top' => 'required',
+            'box_width' => 'required', 'box_height' => 'required', 'box_left' => 'required', 'box_top' => 'required',
         ]);
 
-        // 1. Simpan Gambar ke folder public/uploads
         $imageName = time() . '_' . $request->image->getClientOriginalName();
         $request->image->move(public_path('uploads'), $imageName);
 
-        // 2. Simpan Data Lantai ke SQL Server
         $floor = Floor::create([
             'building_id' => $request->building_id,
             'name' => $request->name,
             'image_path' => '/uploads/' . $imageName,
-            'box_width' => $request->box_width,
-            'box_height' => $request->box_height,
-            'box_left' => $request->box_left,
-            'box_top' => $request->box_top,
-            'polygon_points' => $request->polygon_points // <--- TAMBAHKAN BARIS INI
+            'box_width' => $request->box_width, 'box_height' => $request->box_height, 'box_left' => $request->box_left, 'box_top' => $request->box_top,
+            'polygon_points' => $request->polygon_points 
         ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Lantai ' . $floor->name . ' berhasil disimpan!',
-            'floor' => $floor
-        ]);
+        return response()->json(['success' => true, 'message' => 'Lantai ' . $floor->name . ' berhasil disimpan!', 'floor' => $floor]);
     }
-    // Fungsi untuk menyimpan kordinat saat gedung digeser (Drag & Drop)
+
     public function updatePosition(Request $request)
     {
         try {
-            // Cari gedung berdasarkan ID yang dikirim dari JS
             $building = Building::findOrFail($request->id);
-            
-            // Timpa kordinat lama dengan kordinat baru
-            $building->update([
-                'polygon_points' => $request->polygon_points
-            ]);
-
-            // Kembalikan JSON sukses
-            return response()->json([
-                'success' => true, 
-                'message' => 'Posisi gedung berhasil diupdate!'
-            ]);
-
+            $building->update(['polygon_points' => $request->polygon_points]);
+            return response()->json(['success' => true, 'message' => 'Posisi gedung berhasil diupdate!']);
         } catch (\Exception $e) {
-            // JIKA CRASH, JANGAN KIRIM HTML! Kirim JSON berisi pesan error aslinya
-            return response()->json([
-                'success' => false, 
-                'message' => 'Error Server: ' . $e->getMessage()
-            ], 500);
+            return response()->json(['success' => false, 'message' => 'Error Server: ' . $e->getMessage()], 500);
         }
     }
 
     // --- HALAMAN MANAGEMENT DATA ---
     public function management()
     {
-        // Ambil semua gedung beserta jumlah lantainya
         $buildings = Building::withCount('floors')->orderBy('created_at', 'desc')->get();
-        // Ambil semua lantai beserta nama gedung induknya
         $floors = Floor::with('building')->orderBy('created_at', 'desc')->get();
-        
         return view('management', compact('buildings', 'floors'));
     }
 
-    // --- FUNGSI UPDATE & DELETE GEDUNG ---
-    public function updateBuilding(Request $request, $id)
+    // --- FITUR UPDATE NAMA GEDUNG ---
+    public function updateBuilding(Request $request, $id) 
     {
-        $building = Building::findOrFail($id);
+        $request->validate(['name' => 'required|string|max:255']);
+        $building = \App\Models\Building::findOrFail($id);
         $building->update(['name' => $request->name]);
-        return response()->json(['success' => true, 'message' => 'Nama gedung diperbarui!']);
+        return redirect()->back()->with('success', 'Nama gedung berhasil diperbarui!');
     }
 
     public function destroyBuilding($id)
     {
         $building = Building::findOrFail($id);
-        // Lantai dan perangkat di dalamnya otomatis akan terhapus jika di migration Tuan menggunakan onDelete('cascade')
         $building->delete();
         return response()->json(['success' => true, 'message' => 'Gedung berhasil dihapus!']);
     }
 
-    // --- FUNGSI UPDATE & DELETE LANTAI ---
-    public function updateFloor(Request $request, $id)
+    // --- FITUR UPDATE NAMA LANTAI ---
+    public function updateFloor(Request $request, $id) 
     {
-        $floor = Floor::findOrFail($id);
+        $request->validate(['name' => 'required|string|max:255']);
+        $floor = \App\Models\Floor::findOrFail($id);
         $floor->update(['name' => $request->name]);
-        return response()->json(['success' => true, 'message' => 'Nama lantai diperbarui!']);
+        return redirect()->back()->with('success', 'Nama lantai berhasil diperbarui!');
     }
 
     public function destroyFloor($id)
@@ -200,7 +161,6 @@ class LocationController extends Controller
         return response()->json(['success' => true, 'message' => count($request->ids) . ' Lantai berhasil dilenyapkan!']);
     }
 
-    // Buka Micro Studio dalam Mode EDIT
     public function editMicroStudio($floor_id)
     {
         $floor = Floor::with('building')->findOrFail($floor_id);
@@ -208,21 +168,16 @@ class LocationController extends Controller
         return view('micro_studio', compact('building', 'floor'));
     }
 
-    // Overwrite Database Lantai
     public function updateFloorVisual(Request $request)
     {
         $floor = Floor::findOrFail($request->floor_id);
 
         $dataToUpdate = [
             'name' => $request->name,
-            'box_width' => $request->box_width,
-            'box_height' => $request->box_height,
-            'box_left' => $request->box_left,
-            'box_top' => $request->box_top,
-            'polygon_points' => $request->polygon_points // <--- TAMBAHKAN BARIS INI
+            'box_width' => $request->box_width, 'box_height' => $request->box_height, 'box_left' => $request->box_left, 'box_top' => $request->box_top,
+            'polygon_points' => $request->polygon_points 
         ];
 
-        // Jika Tuan mengupload gambar denah baru, timpa yang lama
         if ($request->hasFile('image')) {
             $imageName = time() . '_' . $request->image->getClientOriginalName();
             $request->image->move(public_path('uploads'), $imageName);
@@ -230,114 +185,54 @@ class LocationController extends Controller
         }
 
         $floor->update($dataToUpdate);
-
         return response()->json(['success' => true, 'message' => 'Visual Lantai berhasil diperbarui (Overwritten)!']);
     }
     
-    public function printReport()
-    {
-        // Ambil SEMUA data hierarki dari ujung atas sampai ujung bawah
-        $buildings = Building::with(['floors.switchNodes', 'floors.pcNodes'])->get();
-        
-        return view('print_report', compact('buildings'));
-    }
-    
+    // (FUNGSI printReport LAMA DIHAPUS, DIGANTIKAN OLEH SWITCH CONTROLLER)
+
+    // Export Inventory sekarang membaca dari Asset
     public function exportInventory()
     {
-        // 1. Ambil Data
-        $buildings = Building::with(['floors.switchNodes', 'floors.pcNodes'])->get();
-
-        // 2. Siapkan File Excel (.xlsx)
+        $buildings = Building::with(['floors.assets.category', 'floors.assets.ipAddress'])->get();
         $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
         
-        // Buat 3 Sheet yang Tuan minta
-        $sheetAll = $spreadsheet->getActiveSheet();
-        $sheetAll->setTitle('All Inventory');
+        $sheetAll = $spreadsheet->getActiveSheet(); $sheetAll->setTitle('All Inventory');
         
-        $sheetSwitch = $spreadsheet->createSheet();
-        $sheetSwitch->setTitle('Switch');
-        
-        $sheetPC = $spreadsheet->createSheet();
-        $sheetPC->setTitle('PC');
-
-        // Fungsi Bantuan untuk Mewarnai Header Tabel (Dengan Tambahan 2 Kolom Baru)
         $setHeaders = function($sheet) {
-            $headers = ['No', 'Gedung', 'Lantai', 'Jenis Perangkat', 'Hostname', 'IP Address', 'Spesifikasi / User', 'Status Operasional', 'Tahun Pemasangan'];
+            $headers = ['No', 'Gedung', 'Lantai', 'Kode Aset', 'Kategori', 'Nama Perangkat', 'Merek/Model', 'IP Address', 'Pengguna', 'Status', 'Tahun', 'Keterangan'];
             $sheet->fromArray($headers, NULL, 'A1');
-            $sheet->getStyle('A1:I1')->getFont()->setBold(true);
-            $sheet->getStyle('A1:I1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FFD9E1F2'); // Warna Biru Lembut
+            $sheet->getStyle('A1:L1')->getFont()->setBold(true);
+            $sheet->getStyle('A1:L1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FFD9E1F2');
         };
 
-        // Terapkan header ke ketiga sheet
         $setHeaders($sheetAll);
-        $setHeaders($sheetSwitch);
-        $setHeaders($sheetPC);
-
-        // 3. Masukkan Data ke Masing-Masing Sheet
-        $rowAll = 2; $rowSwitch = 2; $rowPC = 2;
-        $noAll = 1; $noSwitch = 1; $noPC = 1;
+        $rowAll = 2; $noAll = 1; 
 
         foreach ($buildings as $building) {
             foreach ($building->floors as $floor) {
-                
-                // Distribusi Data Switch
-                foreach ($floor->switchNodes as $switch) {
+                foreach ($floor->assets as $asset) {
                     $data = [
-                        '', 
+                        $noAll++, 
                         $building->name, 
                         $floor->name, 
-                        'Switch / Router', 
-                        $switch->name, 
-                        $switch->ip_address ?? '-', 
-                        $switch->brand_model ?? '-',
-                        '-', // Switch tidak punya status aktif/rusak di DB kita
-                        $switch->installation_year ?? '-'
+                        $asset->asset_code ?? '-',
+                        $asset->category->name ?? 'Unknown',
+                        $asset->name, 
+                        $asset->brand_model ?? '-',
+                        $asset->ipAddress->ip_address ?? '-', 
+                        $asset->current_user ?? '-',
+                        strtoupper($asset->status ?? '-'),
+                        $asset->installation_year ?? '-',
+                        $asset->description ?? '-'
                     ];
-                    
-                    // Masuk ke Sheet All
-                    $data[0] = $noAll++;
                     $sheetAll->fromArray($data, NULL, 'A' . $rowAll++);
-                    
-                    // Masuk ke Sheet Khusus Switch
-                    $data[0] = $noSwitch++;
-                    $sheetSwitch->fromArray($data, NULL, 'A' . $rowSwitch++);
-                }
-                
-                // Distribusi Data PC
-                foreach ($floor->pcNodes as $pc) {
-                    $data = [
-                        '', 
-                        $building->name, 
-                        $floor->name, 
-                        'PC / Client', 
-                        $pc->name, 
-                        $pc->ip_address ?? '-', 
-                        $pc->current_user ?? '-',
-                        strtoupper($pc->status ?? '-'),
-                        $pc->installation_year ?? '-'
-                    ];
-                    
-                    // Masuk ke Sheet All
-                    $data[0] = $noAll++;
-                    $sheetAll->fromArray($data, NULL, 'A' . $rowAll++);
-                    
-                    // Masuk ke Sheet Khusus PC
-                    $data[0] = $noPC++;
-                    $sheetPC->fromArray($data, NULL, 'A' . $rowPC++);
                 }
             }
         }
 
-        // 4. Rapihkan Lebar Kolom Otomatis di Semua Sheet (Sampai Kolom I)
-        foreach ([$sheetAll, $sheetSwitch, $sheetPC] as $sheet) {
-            foreach (range('A', 'I') as $col) {
-                $sheet->getColumnDimension($col)->setAutoSize(true);
-            }
-        }
+        foreach (range('A', 'L') as $col) { $sheetAll->getColumnDimension($col)->setAutoSize(true); }
 
-        // 5. Eksekusi Download
         $fileName = 'Master_Audit_Inventory_KBK_' . date('Ymd_His') . '.xlsx';
-        
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         header('Content-Disposition: attachment;filename="' . $fileName . '"');
         header('Cache-Control: max-age=0');
