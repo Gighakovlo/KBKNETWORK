@@ -223,12 +223,17 @@
                     container.classList.remove('hidden');
                     let html = '<p class="text-xs font-bold text-emerald-500 uppercase tracking-widest mb-3">Spesifikasi Khusus</p>';
                     fields.forEach(field => {
-                        let requiredMarker = field.is_required ? ' *' : '';
+                        // LOGIKA BARU ANTI-JEBAKAN SQL SERVER
+                        const isFieldRequired = (field.is_required == 1 || field.is_required === true || field.is_required === "1");
+                        
+                        let requiredMarker = isFieldRequired ? ' *' : '';
+                        let isRequiredStr = isFieldRequired ? 'required' : '';
+                        
                         let inputType = field.input_type === 'number' ? 'number' : (field.input_type === 'date' ? 'date' : 'text');
                         html += `
                             <div class="mb-3">
                                 <label class="block text-xs font-bold text-slate-400 mb-1">${field.field_name}${requiredMarker}</label>
-                                <input type="${inputType}" name="dyn_field_${field.id}" ${field.is_required ? 'required' : ''} data-field-id="${field.id}" class="dynamic-input w-full bg-slate-950 border border-slate-700 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-emerald-500 transition text-sm">
+                                <input type="${inputType}" name="dyn_field_${field.id}" ${isRequiredStr} data-field-id="${field.id}" class="dynamic-input w-full bg-slate-950 border border-slate-700 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-emerald-500 transition text-sm">
                             </div>
                         `;
                     });

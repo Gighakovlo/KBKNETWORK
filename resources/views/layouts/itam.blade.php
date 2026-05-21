@@ -39,6 +39,12 @@
             <a href="{{ route('ipam.index') }}" class="sidebar-link {{ request()->routeIs('ipam.*') ? 'sidebar-active' : 'text-slate-400 border-transparent' }} flex items-center gap-4 px-6 py-4 border-l-4 text-sm font-bold tracking-wide">
                 <span class="text-xl">🌐</span> IP Manager
             </a>
+
+            <a href="{{ route('documents.index') }}" class="flex items-center gap-4 px-6 py-4 {{ request()->routeIs('documents.*') ? 'bg-blue-600/10 border-l-4 border-blue-500 text-white' : 'text-slate-500 hover:bg-slate-800/50 hover:text-white border-l-4 border-transparent' }} transition">
+                <span class="text-xl">📄</span>
+                <span class="font-bold text-sm uppercase tracking-widest">Arsip Dokumen</span>
+            </a>
+
             <a href="{{ route('settings.index') }}" class="sidebar-link {{ request()->routeIs('settings.*') ? 'sidebar-active' : 'text-slate-400 border-transparent' }} flex items-center gap-4 px-6 py-4 border-l-4 text-sm font-bold tracking-wide">
                 <span class="text-xl">⚙️</span> Master Settings
             </a>

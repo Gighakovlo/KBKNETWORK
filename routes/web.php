@@ -126,4 +126,12 @@ Route::middleware('auth')->group(function () {
     // --- J. RUTE MIGRASI DARURAT (SAPU JAGAT) ---
     Route::get('/mapping-migrate-legacy', [MappingController::class, 'migrateLegacyData']);
 
+
+    // Rute Arsip Dokumen
+    Route::get('/inventory/documents', [App\Http\Controllers\DocumentController::class, 'index'])->name('documents.index');
+    Route::post('/inventory/documents', [App\Http\Controllers\DocumentController::class, 'store'])->name('documents.store');
+    Route::put('/inventory/documents/{id}', [App\Http\Controllers\DocumentController::class, 'update'])->name('documents.update');
+    Route::delete('/inventory/documents/{id}', [App\Http\Controllers\DocumentController::class, 'destroy'])->name('documents.destroy');
+    Route::post('/inventory/documents/bulk-delete', [App\Http\Controllers\DocumentController::class, 'bulkDelete'])->name('documents.bulkDelete');
+
 });

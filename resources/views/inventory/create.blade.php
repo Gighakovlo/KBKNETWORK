@@ -193,8 +193,11 @@
 
             let html = '';
             fields.forEach(f => {
-                const reqStr = f.is_required ? 'required' : '';
-                const star = f.is_required ? '*' : '';
+                // Memaksa JavaScript mengecek apakah is_required itu benar-benar bernilai positif (1, "1", atau true)
+                const isFieldRequired = (f.is_required == 1 || f.is_required === true || f.is_required === "1");
+
+                const reqStr = isFieldRequired ? 'required' : '';
+                const star = isFieldRequired ? '*' : '';
                 html += `
                     <div>
                         <label class="block text-xs font-bold text-slate-400 mb-2">${f.field_name} ${star}</label>
