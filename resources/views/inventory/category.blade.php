@@ -125,6 +125,9 @@
                                 <td class="p-4 text-right space-x-2">
                                     <a href="{{ route('inventory.edit', $asset->id) }}" class="text-blue-400 hover:text-blue-300 font-bold px-3 py-1 rounded border border-blue-900/50 hover:bg-blue-900/20 transition text-xs inline-block">Edit</a>
                                     <button onclick="confirmDelete('{{ $asset->id }}', '{{ $asset->asset_code }}')" class="text-red-400 hover:text-red-300 font-bold px-3 py-1 rounded border border-red-900/50 hover:bg-red-900/20 transition text-xs">Hapus</button>
+                                    <a href="{{ route('inventory.print.single', $asset->id) }}" target="_blank" class="text-indigo-400 hover:text-indigo-300 font-bold px-3 py-1 transition text-xs border border-indigo-900/50 rounded hover:bg-indigo-900/20">
+                                        Cetak PDF
+                                    </a>
                                 </td>
                             </tr>
                         @empty

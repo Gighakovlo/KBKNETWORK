@@ -134,4 +134,6 @@ Route::middleware('auth')->group(function () {
     Route::delete('/inventory/documents/{id}', [App\Http\Controllers\DocumentController::class, 'destroy'])->name('documents.destroy');
     Route::post('/inventory/documents/bulk-delete', [App\Http\Controllers\DocumentController::class, 'bulkDelete'])->name('documents.bulkDelete');
 
+    Route::get('/inventory/asset/{id}/print', [App\Http\Controllers\InventoryController::class, 'printIndividual'])->name('inventory.print.single');
+
 });

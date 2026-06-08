@@ -569,4 +569,42 @@ class InventoryController extends Controller
         $writer->save('php://output');
         exit;
     }
+
+    // =================================================================
+    // 15. FITUR CETAK ASET INDIVIDUAL BESERTA HISTORY (REVISI 3)
+    // =================================================================
+    public function printIndividual($id)
+    {
+        // Tarik aset dengan SEMUA relasinya (Kategori, Spesifikasi EAV, Gedung, Mutasi, dan History)
+        $asset = Asset::with([
+            'category.fields', 'values.field', 'building', 'floor', 
+            'ipAddress', 'movements', 'histories'
+        ])->findOrFail($id);
+
+        // Siapkan penampung kosong (Collection) untuk Timeline Sejarah
+        $timeline = collect();
+
+        // 1. Sedot data dari Tabel Mutasi Fisik
+        foreach($asset->movements as $mov) {
+            $timeline->push([
+                'date' => $mov->created_at,
+                'type' => 'MUTASI LOKASI / USER',
+                'desc' => "Lokasi: {$mov->previous_location} ➔ {$mov->new_location} | Pengguna: {$mov->previous_user} ➔ {$mov->new_user}"
+            ]);
+        }
+
+        // 2. Sedot data dari Tabel History Administrasi (Observer)
+        foreach($asset->histories as $hist) {
+            $timeline->push([
+                'date' => $hist->created_at,
+                'type' => strtoupper($hist->field_changed),
+                'desc' => "Diubah dari '{$hist->old_value}' menjadi '{$hist->new_value}'"
+            ]);
+        }
+
+        // 3. Gabungkan dan urutkan dari yang terbaru (Descending)
+        $timeline = $timeline->sortByDesc('date');
+
+        return view('inventory.print_individual', compact('asset', 'timeline'));
+    }
 }

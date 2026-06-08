@@ -3,198 +3,211 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Laporan Topologi - {{ $floor->name }}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <title>Dokumentasi Jaringan - {{ $floor->building->name ?? 'Gedung' }} ({{ $floor->name }})</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    <style id="page-style">
+        @page { size: A4 portrait; margin: 15mm; }
+    </style>
     <style>
-        /* Tema Gelap untuk Tampilan Web */
-        body { background-color: #0f172a; overflow-x: hidden; }
-        .glass-nav { background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(16px); border-bottom: 1px solid rgba(255, 255, 255, 0.1); z-index: 50; }
-        
-        /* Pengaturan Kertas Print */
+        body { background-color: #f1f5f9; color: #1e293b; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
+        .a4-container { width: 100%; max-width: 297mm; background: white; margin: 20px auto; padding: 15mm 20mm; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); box-sizing: border-box; }
+
         @media print {
-            body { background-color: white !important; background-image: none !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            body { background-color: white !important; }
+            .a4-container { box-shadow: none !important; margin: 0 !important; padding: 0 !important; width: 100% !important; max-width: none !important; }
             .no-print { display: none !important; }
-            .page-break { page-break-before: always; }
-            .print-paper { box-shadow: none !important; border: none !important; margin: 0 !important; padding: 0 !important; max-width: 100% !important; background-color: white !important; }
+            
+            /* Aturan Page Break yang Lebih Cerdas */
+            tr, .category-header, .map-box { page-break-inside: avoid; break-inside: avoid; }
+            h1, h2, h3, h5 { page-break-after: avoid; break-after: avoid; }
+            
+            /* Pastikan kanvas tidak meluber keluar kertas */
+            canvas { max-width: 100% !important; height: auto !important; }
+            
+            /* Kurangi margin raksasa saat diprint */
+            .print-mb-small { margin-bottom: 15px !important; }
         }
-        #topologyNetwork { width: 100%; height: 500px; background-color: #f8fafc; border-radius: 0.5rem; border: 2px solid #e2e8f0; }
-        .vis-network { outline: none; }
+
+        .text-center { text-align: center; } .flex { display: flex; } .justify-between { justify-content: space-between; } .items-center { align-items: center; }
+        .mt-2 { margin-top: 8px; } .mt-4 { margin-top: 16px; } .mb-4 { margin-bottom: 16px; } .mb-8 { margin-bottom: 32px; }
+        
+        h1 { font-size: 22px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
+        h3 { font-size: 16px; font-weight: bold; background-color: #1e293b; color: white; padding: 8px 12px; text-transform: uppercase; margin-bottom: 10px; }
+        h5 { font-size: 12px; font-weight: bold; color: #1e293b; border-bottom: 2px solid #cbd5e1; padding-bottom: 4px; margin-bottom: 10px; text-transform: uppercase; }
+        
+        .text-xs { font-size: 10px; } .text-sm { font-size: 12px; } .text-slate-500 { color: #64748b; } .font-bold { font-weight: bold; }
+        
+        .map-container { border: 2px dashed #cbd5e1; padding: 5px; border-radius: 4px; text-align: center; background: #f8fafc; overflow: hidden; }
+        .map-caption { font-size: 10px; font-weight: bold; color: #64748b; text-transform: uppercase; margin-top: 5px; }
+
+        th, td { border: 1px solid #94a3b8; padding: 8px 6px; text-align: left; font-size: 10px; }
+        th { background-color: #f1f5f9; font-weight: bold; text-transform: uppercase; font-size: 9px; }
+        .table-striped tbody tr:nth-child(even) { background-color: #f8fafc; }
+
+        .action-buttons { position: fixed; top: 20px; right: 20px; display: flex; gap: 10px; z-index: 100; }
+        .btn-print, .btn-back, .btn-toggle { padding: 10px 15px; border-radius: 8px; font-weight: bold; text-decoration: none; font-size: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); cursor: pointer; border: none; transition: 0.2s; }
+        .btn-print { background: #2563eb; color: white; }
+        .btn-toggle { background: #0f172a; color: white; border: 1px solid #334155; }
+        .btn-back { background: #475569; color: white; }
+        .btn-print:hover { background: #1d4ed8; } .btn-toggle:hover { background: #1e293b; } .btn-back:hover { background: #334155; }
     </style>
 </head>
-<body class="font-sans relative text-slate-800">
+<body>
 
     @php
-        // Filter otomatis dari The Great Merge
-        $switches = collect();
-        $pcs = collect();
-
-        if(isset($floor) && $floor->assets) {
-            foreach($floor->assets as $asset) {
-                $prefix = strtoupper($asset->category->prefix ?? 'AST');
-                if(str_contains($prefix, 'SWT') || str_contains($prefix, 'ROU')) {
-                    $switches->push($asset);
-                } else {
-                    $pcs->push($asset);
-                }
-            }
+        $floorAssetsByCat = $floor->assets->whereNotNull('pos_x')->groupBy('asset_category_id');
+        $counter = 1;
+        foreach($floor->assets->whereNotNull('pos_x') as $a) {
+            $a->mapNumber = $counter++;
         }
     @endphp
 
-    <div class="fixed top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none no-print">
-        <div class="absolute top-[-10%] right-[-10%] w-96 h-96 bg-blue-900 rounded-full mix-blend-screen filter blur-[120px] opacity-20"></div>
+    <div class="action-buttons no-print">
+        <button onclick="history.back()" class="btn-back">&larr; Kembali</button>
+        <button onclick="setOrientation('portrait')" class="btn-toggle">📄 Portrait</button>
+        <button onclick="setOrientation('landscape')" class="btn-toggle">🖨️ Landscape</button>
+        <button onclick="window.print()" class="btn-print">🖨️ Cetak Laporan PDF</button>
     </div>
 
-    <div class="glass-nav sticky top-0 w-full px-8 py-4 flex justify-between items-center shadow-xl no-print">
-        <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-gradient-to-br from-blue-600 to-teal-400 text-white flex items-center justify-center font-black text-lg rounded-lg shadow-[0_0_15px_rgba(37,99,235,0.4)]">KBK</div>
-            <h1 class="text-white font-bold tracking-wide">Report Generator System</h1>
-        </div>
-        <div class="flex items-center gap-4">
-            <a href="javascript:history.back()" class="bg-slate-800 border border-slate-600 text-slate-300 px-5 py-2.5 rounded-xl font-bold hover:bg-slate-700 transition text-sm">
-                &larr; Batal & Kembali
-            </a>
-            <button onclick="window.print()" class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-6 py-2.5 rounded-xl font-bold transition flex items-center gap-2 text-sm shadow-[0_0_15px_rgba(79,70,229,0.4)]">
-                🖨️ Cetak & Simpan PDF
-            </button>
-        </div>
-    </div>
-
-    <div class="max-w-4xl mx-auto bg-white p-12 shadow-[0_0_40px_rgba(0,0,0,0.5)] border border-slate-700 mt-10 mb-20 relative z-10 print-paper">
+    <div class="a4-container">
         
-        <div class="flex items-center justify-between border-b-4 border-gray-800 pb-4 mb-8">
-            <div class="flex items-center gap-4">
-                <div class="w-16 h-16 bg-blue-800 text-white flex items-center justify-center font-bold text-2xl rounded-lg shadow-inner">KBK</div>
-                <div>
-                    <h1 class="text-2xl font-black text-gray-800 uppercase tracking-wide">PT. Krakatau Baja Konstruksi</h1>
-                    <p class="text-sm text-gray-600 font-semibold">Departemen IT Infrastructure & Network</p>
+        <div class="print-mb-small" style="border-bottom: 3px solid #1e293b; padding-bottom: 15px; margin-bottom: 25px; display: flex; align-items: center; gap: 20px;">
+            <div style="width: 60px; height: 60px; background: #1e40af; color: white; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 24px; border-radius: 10px;">KBK</div>
+            <div style="flex-grow: 1;">
+                <h1 style="font-size: 20px;">PT. Krakatau Baja Konstruksi</h1>
+                <p class="text-sm font-bold text-slate-500" style="margin: 0;">Departemen IT Infrastructure & Network</p>
+            </div>
+            <div style="text-align: right;">
+                <p class="font-bold" style="margin: 0; font-size: 14px;">LAPORAN PEMETAAN LANTAI</p>
+                <p class="text-xs text-slate-500" style="margin: 0;">Dicetak: {{ \Carbon\Carbon::now()->format('d M Y') }}</p>
+            </div>
+        </div>
+
+        <div class="text-center mb-6 print-mb-small">
+            <h2 style="font-size: 18px; font-weight: 900; text-transform: uppercase; margin: 0;">
+                Dokumentasi Jaringan: {{ $floor->building->name ?? 'Gedung' }} - {{ $floor->name }}
+            </h2>
+        </div>
+
+        @if($floor->image_path)
+            <div class="mb-8 map-box print-mb-small">
+                <h3>1. Peta Topologi (Visual Blueprint)</h3>
+                <div class="map-container mt-2">
+                    <canvas id="floorCanvas" width="720" height="405"></canvas>
+                    <div class="map-caption">Angka pada peta merujuk pada "No Peta" di tabel daftar aset.</div>
                 </div>
             </div>
-            <div class="text-right">
-                <p class="text-sm font-bold text-gray-800">LAPORAN PERANGKAT</p>
-                <p class="text-xs text-gray-500">Dicetak: {{ date('d M Y') }}</p>
-            </div>
+        @endif
+
+        <div class="mb-4">
+            <h3 class="mb-4">2. Rincian Aset Berdasarkan Kategori</h3>
+
+            @if($floorAssetsByCat->count() > 0)
+                @foreach($floorAssetsByCat as $catId => $assetsInCat)
+                    @php
+                        $cat = $assetsInCat->first()->category;
+                        $showIp = $cat ? $cat->has_ip : false;
+                    @endphp
+                    
+                    <div class="mb-6">
+                        <h5 class="category-header" style="background: #e2e8f0; color: #0f172a; padding: 6px 10px; margin: 0; border-left: 4px solid #1e40af;">
+                            📦 {{ $cat->name ?? 'Kategori Lainnya' }} ({{ $cat->prefix ?? 'AST' }})
+                        </h5>
+                        <table class="table-striped mt-0">
+                            <thead>
+                                <tr>
+                                    <th class="text-center" style="width: 40px;">No Peta</th>
+                                    <th style="width: 80px;">Kode Aset</th>
+                                    <th>Hostname / Nama</th>
+                                    @if($showIp) <th>IP Address</th> @endif
+                                    @if($cat)
+                                        @foreach($cat->fields as $field) <th>{{ $field->field_name }}</th> @endforeach
+                                    @endif
+                                    <th>Pengguna (User)</th>
+                                    <th class="text-center">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($assetsInCat as $asset)
+                                    <tr>
+                                        <td class="text-center font-black text-blue-600 text-sm">{{ $asset->mapNumber ?? '-' }}</td>
+                                        <td class="font-mono text-xs">{{ $asset->asset_code }}</td>
+                                        <td class="font-bold">{{ $asset->name }}</td>
+                                        @if($showIp) <td class="font-mono">{{ $asset->ipAddress->ip_address ?? '-' }}</td> @endif
+                                        @if($cat)
+                                            @foreach($cat->fields as $field)
+                                                @php $valObj = $asset->values->firstWhere('category_field_id', $field->id); @endphp
+                                                <td>{{ $valObj ? $valObj->value : '-' }}</td>
+                                            @endforeach
+                                        @endif
+                                        <td>{{ $asset->current_user ?? '-' }}</td>
+                                        <td class="text-center font-bold">{{ strtoupper($asset->status ?? '-') }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endforeach
+            @else
+                <div class="text-center p-6 border border-dashed border-slate-400 mt-4">
+                    <p class="text-sm font-bold text-slate-500">Belum ada aset yang dipetakan di lantai ini.</p>
+                </div>
+            @endif
         </div>
 
-        <div class="text-center mb-8">
-            <h2 class="text-xl font-bold uppercase text-gray-900">Dokumentasi Jaringan: {{ $floor->building->name ?? 'Unknown' }} - {{ $floor->name ?? 'Unknown' }}</h2>
-        </div>
-
-        <div class="mb-10">
-            <h3 class="text-md font-bold text-gray-800 mb-3 border-b-2 border-gray-200 pb-1">1. Pemetaan Hierarki Perangkat</h3>
-            <div id="topologyNetwork"></div>
-        </div>
-
-        <div class="page-break"></div>
-
-        <div class="mb-8">
-            <h3 class="text-md font-bold text-gray-800 mb-3 border-b-2 border-gray-200 pb-1">2. Daftar Perangkat Switch / Router</h3>
-            <table class="w-full text-sm text-left border-collapse border border-gray-300">
-                <thead class="bg-gray-100 text-gray-800">
-                    <tr>
-                        <th class="border border-gray-300 p-2 w-10 text-center">No</th>
-                        <th class="border border-gray-300 p-2">Nama Switch</th>
-                        <th class="border border-gray-300 p-2">IP Address</th>
-                        <th class="border border-gray-300 p-2">Merek/Model</th>
-                    </tr>
-                </thead>
-                <tbody class="text-gray-700">
-                    @forelse($switches as $index => $sw)
-                    <tr>
-                        <td class="border border-gray-300 p-2 text-center">{{ $index + 1 }}</td>
-                        <td class="border border-gray-300 p-2 font-bold">{{ $sw->name }}</td>
-                        <td class="border border-gray-300 p-2">{{ $sw->ipAddress->ip_address ?? '-' }}</td>
-                        <td class="border border-gray-300 p-2">{{ $sw->brand_model ?? '-' }}</td>
-                    </tr>
-                    @empty
-                    <tr><td colspan="4" class="border border-gray-300 p-2 text-center text-gray-500">Tidak ada data switch/router di lantai ini.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-
-        <div class="mb-8">
-            <h3 class="text-md font-bold text-gray-800 mb-3 border-b-2 border-gray-200 pb-1">3. Daftar Perangkat Komputer (PC) & Lainnya</h3>
-            <table class="w-full text-sm text-left border-collapse border border-gray-300">
-                <thead class="bg-gray-100 text-gray-800">
-                    <tr>
-                        <th class="border border-gray-300 p-2 w-10 text-center">No</th>
-                        <th class="border border-gray-300 p-2">Kategori</th>
-                        <th class="border border-gray-300 p-2">Nama Hostname</th>
-                        <th class="border border-gray-300 p-2">IP Address</th>
-                        <th class="border border-gray-300 p-2">Pengguna (User)</th>
-                    </tr>
-                </thead>
-                <tbody class="text-gray-700">
-                    @forelse($pcs as $index => $pc)
-                    <tr>
-                        <td class="border border-gray-300 p-2 text-center">{{ $index + 1 }}</td>
-                        <td class="border border-gray-300 p-2 font-bold">{{ $pc->category->name ?? 'Unknown' }}</td>
-                        <td class="border border-gray-300 p-2">{{ $pc->name }}</td>
-                        <td class="border border-gray-300 p-2">{{ $pc->ipAddress->ip_address ?? '-' }}</td>
-                        <td class="border border-gray-300 p-2">{{ $pc->current_user ?? '-' }}</td>
-                    </tr>
-                    @empty
-                    <tr><td colspan="5" class="border border-gray-300 p-2 text-center text-gray-500">Tidak ada data perangkat tambahan.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-        
-        <div class="mt-16 text-right">
-            <p class="text-sm mb-16 text-gray-800">Mengetahui,</p>
-            <p class="font-bold underline text-sm text-gray-900">Tim IT Infrastructure</p>
+        <div class="mt-8 text-right category-header" style="padding-top: 30px;">
+            <p class="text-sm mb-16 text-slate-800">Mengetahui,</p>
+            <p class="font-bold underline text-sm text-slate-900">Tim IT Infrastructure</p>
         </div>
 
     </div>
 
     <script>
-        // Mengubah Collection menjadi JSON untuk JavaScript
-        const switches = @json($switches->values());
-        const pcs = @json($pcs->values());
+        function setOrientation(type) {
+            document.getElementById('page-style').innerHTML = `@page { size: A4 ${type}; margin: 15mm; }`;
+        }
 
-        const switchSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#3b82f6"><path d="M2 7v10h20V7H2zm18 8H4V9h16v6zm-2-4h-2v2h2v-2zm-4 0h-2v2h2v-2zm-4 0H8v2h2v-2z"/></svg>';
-        const pcSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#14b8a6"><path d="M21 2H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7v2H8v2h8v-2h-2v-2h7c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H3V4h18v12z"/></svg>';
-        
-        const switchIcon = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(switchSvg);
-        const pcIcon = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(pcSvg);
+        const imageUrl = "{{ $floor->image_path }}";
+        const assetsData = @json($floor->assets->whereNotNull('pos_x')->values());
 
-        let nodesArray = [];
-        
-        switches.forEach(sw => {
-            let ipLabel = sw.ip_address ? sw.ip_address.ip_address : '';
-            nodesArray.push({
-                id: 'switch_' + sw.id, label: sw.name + '\n' + ipLabel,
-                image: switchIcon, shape: 'image', level: 0,
-                font: { face: 'sans-serif', size: 14, bold: true, color: '#1e293b' }
+        if(imageUrl) {
+            const fCanvas = new fabric.StaticCanvas('floorCanvas');
+            fabric.Image.fromURL(imageUrl, function(img) {
+                // Dimensi Canvas Diperbarui menjadi 720 x 405 (Aspect Ratio 16:9 yang aman untuk A4)
+                let finalScale = Math.min(720 / img.width, 405 / img.height);
+                let panX = (720 - (img.width * finalScale)) / 2; 
+                let panY = (405 - (img.height * finalScale)) / 2;
+
+                img.set({ scaleX: finalScale, scaleY: finalScale, left: panX, top: panY });
+                fCanvas.setBackgroundImage(img, fCanvas.renderAll.bind(fCanvas));
+
+                assetsData.forEach(dev => {
+                    let color = dev.category && dev.category.color ? dev.category.color : '#3b82f6';
+                    let iconPath = dev.category && dev.category.icon_path ? '/' + dev.category.icon_path : null;
+                    let currentNumber = dev.mapNumber; 
+
+                    let leftPos = panX + (parseFloat(dev.pos_x) * finalScale);
+                    let topPos = panY + (parseFloat(dev.pos_y) * finalScale);
+
+                    if(iconPath) {
+                        fabric.Image.fromURL(iconPath, function(iconImg) {
+                            iconImg.scaleToWidth(25); iconImg.set({ originX: 'center', originY: 'center' });
+                            
+                            let badgeRect = new fabric.Rect({ width: 16, height: 16, fill: color, rx: 8, ry: 8, originX: 'center', originY: 'center', top: 18 });
+                            let badgeText = new fabric.Text(currentNumber.toString(), { fontSize: 10, fill: '#ffffff', fontWeight: 'bold', originX: 'center', originY: 'center', top: 18 });
+
+                            fCanvas.add(new fabric.Group([iconImg, badgeRect, badgeText], { left: leftPos, top: topPos, originX: 'center', originY: 'center' }));
+                            fCanvas.renderAll();
+                        });
+                    } else {
+                        let rect = new fabric.Rect({ width: 25, height: 25, fill: color, rx: 4, ry: 4, originX: 'center', originY: 'center' });
+                        let badgeText = new fabric.Text(currentNumber.toString(), { fontSize: 12, fill: '#ffffff', fontWeight: 'bold', originX: 'center', originY: 'center' });
+                        fCanvas.add(new fabric.Group([rect, badgeText], { left: leftPos, top: topPos, originX: 'center', originY: 'center' }));
+                        fCanvas.renderAll();
+                    }
+                });
             });
-        });
-
-        pcs.forEach(pc => {
-            nodesArray.push({
-                id: 'pc_' + pc.id, label: pc.name + '\n' + (pc.current_user || ''),
-                image: pcIcon, shape: 'image', level: 1,
-                font: { face: 'sans-serif', size: 12, color: '#475569' }
-            });
-        });
-
-        let nodes = new vis.DataSet(nodesArray);
-        let container = document.getElementById('topologyNetwork');
-        
-        // Fitur Kabel sudah dihapus, maka Edge (Jalur) ditiadakan.
-        let data = { nodes: nodes, edges: new vis.DataSet([]) };
-        
-        let options = {
-            layout: { hierarchical: { direction: 'UD', levelSeparation: 150, nodeSpacing: 250, treeSpacing: 200 } },
-            physics: false,
-            interaction: { dragNodes: false, zoomView: false, dragView: false }
-        };
-
-        let network = new vis.Network(container, data, options);
-
-        network.on("afterDrawing", function() {
-            setTimeout(() => { window.print(); }, 800);
-        });
+        }
     </script>
 </body>
 </html>

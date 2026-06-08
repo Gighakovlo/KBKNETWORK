@@ -43,4 +43,10 @@ class Asset extends Model
     {
         return $this->hasMany(AssetMovement::class, 'asset_id')->orderBy('movement_date', 'desc');
     }
+
+    // Relasi ke Tabel History Administrasi (Black Box Observer)
+    public function histories()
+    {
+        return $this->hasMany(AssetHistory::class, 'asset_id');
+    }
 }

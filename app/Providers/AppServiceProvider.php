@@ -19,6 +19,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Mendaftarkan 2 Detektif History Aset
+        \App\Models\Asset::observe(\App\Observers\AssetObserver::class);
+        \App\Models\AssetValue::observe(\App\Observers\AssetValueObserver::class);
     }
 }

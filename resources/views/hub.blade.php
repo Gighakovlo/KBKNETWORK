@@ -11,12 +11,23 @@
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        
+        /* Animasi Kemunculan Kartu yang Elegan */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade { animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; }
+        .delay-100 { animation-delay: 100ms; }
+        .delay-200 { animation-delay: 200ms; }
+        .delay-300 { animation-delay: 300ms; }
+        .delay-400 { animation-delay: 400ms; }
     </style>
 </head>
-<body class="text-slate-300 font-sans min-h-screen flex flex-col">
+<body class="text-slate-300 font-sans min-h-screen flex flex-col relative overflow-x-hidden">
 
     <nav class="p-8 flex justify-between items-center z-20 border-b border-slate-800/50 glass-card">
-        <div class="flex items-center gap-5">
+        <div class="flex items-center gap-5 animate-fade">
             <div class="mr-6 flex items-center justify-center shrink-0">
                     <img src="{{ asset('img/KBK LOGO PUTIH.png') }}" alt="Logo PT KBK" class="h-12 w-auto object-contain drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]">
             </div>           
@@ -25,7 +36,7 @@
                 <p class="text-xs text-blue-400 font-bold uppercase tracking-[0.3em] mt-1">Sistem Pemetaan Terpusat</p>
             </div>
         </div>
-        <div class="flex items-center gap-4">
+        <div class="flex items-center gap-4 animate-fade">
             <form action="/logout" method="POST">
                 @csrf
                 <button type="submit" class="text-slate-400 font-bold px-6 py-2 border border-slate-700 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/50 rounded-xl transition-all duration-300">LOGOUT</button>
@@ -33,55 +44,45 @@
         </div>
     </nav>
 
-    <main class="flex-grow flex items-center justify-center p-10">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-7xl w-full">
+    <main class="flex-grow flex items-center justify-center p-10 z-10">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl w-full">
             
-            <a href="/live-monitor" class="glass-card p-10 rounded-3xl hover:-translate-y-2 hover:bg-slate-800/80 hover:border-blue-500/50 transition-all duration-300 group shadow-2xl relative overflow-hidden">
-                <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/30 transition-all"></div>
-                <div class="text-6xl mb-6 group-hover:scale-110 transition-transform origin-left">🌐</div>
-                <h2 class="text-2xl font-black text-white mb-3">Live Monitor</h2>
+            <a href="/live-monitor" class="animate-fade delay-100 glass-card p-10 rounded-3xl hover:-translate-y-2 hover:bg-slate-800/80 hover:border-blue-500/50 transition-all duration-300 group shadow-2xl relative overflow-hidden block">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/30 transition-all duration-500"></div>
+                <div class="text-6xl mb-6 group-hover:scale-110 transition-transform origin-left duration-300">🌐</div>
+                <h2 class="text-2xl font-black text-white mb-3 tracking-tight">Live Monitor</h2>
                 <p class="text-sm text-slate-400 leading-relaxed">Pantau seluruh infrastruktur jaringan, switch, dan PC dalam satu peta kawasan. (Mode Read-Only).</p>
-                <div class="mt-8 text-blue-400 font-bold text-xs uppercase tracking-widest flex items-center gap-2">Akses Peta <span class="group-hover:translate-x-2 transition-transform">&rarr;</span></div>
+                <div class="mt-8 text-blue-400 font-bold text-xs uppercase tracking-widest flex items-center gap-2">Akses Peta <span class="group-hover:translate-x-2 transition-transform duration-300">&rarr;</span></div>
             </a>
 
-            <a href="/macro-editor" class="glass-card p-10 rounded-3xl hover:-translate-y-2 hover:bg-slate-800/80 hover:border-amber-500/50 transition-all duration-300 group shadow-2xl relative overflow-hidden">
-                <div class="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl group-hover:bg-amber-500/30 transition-all"></div>
-                <div class="text-6xl mb-6 group-hover:scale-110 transition-transform origin-left">📐</div>
-                <h2 class="text-2xl font-black text-white mb-3">Macro Editor</h2>
+            <a href="/macro-editor" class="animate-fade delay-200 glass-card p-10 rounded-3xl hover:-translate-y-2 hover:bg-slate-800/80 hover:border-amber-500/50 transition-all duration-300 group shadow-2xl relative overflow-hidden block">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl group-hover:bg-amber-500/30 transition-all duration-500"></div>
+                <div class="text-6xl mb-6 group-hover:scale-110 transition-transform origin-left duration-300">📐</div>
+                <h2 class="text-2xl font-black text-white mb-3 tracking-tight">Macro Editor</h2>
                 <p class="text-sm text-slate-400 leading-relaxed">Upload denah master, lakukan cropping (Polygon Hitbox) pada area gedung, dan atur struktur kawasan.</p>
-                <div class="mt-8 text-amber-400 font-bold text-xs uppercase tracking-widest flex items-center gap-2">Edit Kawasan <span class="group-hover:translate-x-2 transition-transform">&rarr;</span></div>
+                <div class="mt-8 text-amber-400 font-bold text-xs uppercase tracking-widest flex items-center gap-2">Edit Kawasan <span class="group-hover:translate-x-2 transition-transform duration-300">&rarr;</span></div>
             </a>
 
-            <button onclick="openMicroModal()" class="text-left w-full glass-card p-10 rounded-3xl hover:-translate-y-2 hover:bg-slate-800/80 hover:border-emerald-500/50 transition-all duration-300 group shadow-2xl relative overflow-hidden cursor-pointer block">
-                <div class="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl group-hover:bg-emerald-500/30 transition-all"></div>
-                <div class="text-6xl mb-6 group-hover:scale-110 transition-transform origin-left">🎛️</div>
-                <h2 class="text-2xl font-black text-white mb-3">Micro Studio</h2>
+            <button onclick="openMicroModal()" class="animate-fade delay-300 text-left w-full glass-card p-10 rounded-3xl hover:-translate-y-2 hover:bg-slate-800/80 hover:border-purple-500/50 transition-all duration-300 group shadow-2xl relative overflow-hidden cursor-pointer block">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl group-hover:bg-purple-500/30 transition-all duration-500"></div>
+                <div class="text-6xl mb-6 group-hover:scale-110 transition-transform origin-left duration-300">🎛️</div>
+                <h2 class="text-2xl font-black text-white mb-3 tracking-tight">Micro Studio</h2>
                 <p class="text-sm text-slate-400 leading-relaxed">Masuk ke dalam spesifik lantai. Upload denah presisi dan atur tata letak perangkat via Split-Screen.</p>
-                <div class="mt-8 text-emerald-400 font-bold text-xs uppercase tracking-widest flex items-center gap-2">Kelola Perangkat <span class="group-hover:translate-x-2 transition-transform">&rarr;</span></div>
+                <div class="mt-8 text-purple-400 font-bold text-xs uppercase tracking-widest flex items-center gap-2">Kelola Perangkat <span class="group-hover:translate-x-2 transition-transform duration-300">&rarr;</span></div>
             </button>
 
-            <a href="/inventory" class="group relative bg-slate-800/40 backdrop-blur-xl border border-slate-700 p-8 rounded-3xl overflow-hidden hover:border-emerald-500/50 transition-all duration-500 shadow-2xl">
-                <div class="absolute -top-10 -right-10 w-32 h-32 bg-emerald-600 rounded-full blur-[80px] opacity-20 group-hover:opacity-40 transition-opacity"></div>
-                
-                <div class="relative z-10">
-                    <div class="w-16 h-16 bg-emerald-600/20 rounded-2xl flex items-center justify-center text-3xl mb-6 border border-emerald-500/30 group-hover:scale-110 transition-transform duration-500">
-                        📦
-                    </div>
-                    <h2 class="text-2xl font-black text-white tracking-tight mb-2">Inventory & Dataset</h2>
-                    <p class="text-slate-400 text-sm font-medium leading-relaxed">
-                        Manajemen aset IT Support terpusat. Kelola inventaris, mutasi barang, dan log permintaan perangkat.
-                    </p>
-                    
-                    <div class="mt-8 flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-widest opacity-0 group-hover:opacity-100 transform translate-x-[-10px] group-hover:translate-x-0 transition-all">
-                        Buka Konsol Data &rarr;
-                    </div>
-                </div>
+            <a href="/inventory" class="animate-fade delay-400 glass-card p-10 rounded-3xl hover:-translate-y-2 hover:bg-slate-800/80 hover:border-emerald-500/50 transition-all duration-300 group shadow-2xl relative overflow-hidden block">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl group-hover:bg-emerald-500/30 transition-all duration-500"></div>
+                <div class="text-6xl mb-6 group-hover:scale-110 transition-transform origin-left duration-300">🗄️</div>
+                <h2 class="text-2xl font-black text-white mb-3 tracking-tight">Inventory & Dataset</h2>
+                <p class="text-sm text-slate-400 leading-relaxed">Manajemen aset IT Support terpusat. Kelola inventaris, mutasi barang, dan log permintaan perangkat.</p>
+                <div class="mt-8 text-emerald-400 font-bold text-xs uppercase tracking-widest flex items-center gap-2">Buka Konsol Data <span class="group-hover:translate-x-2 transition-transform duration-300">&rarr;</span></div>
             </a>
 
         </div>
     </main>
 
-    <footer class="p-6 text-center text-slate-600 text-xs font-bold tracking-widest uppercase">
+    <footer class="p-6 text-center text-slate-600 text-xs font-bold tracking-widest uppercase z-10">
         &copy; 2026 PT. Krakatau Baja Konstruksi - Network Division
     </footer>
 
@@ -148,7 +149,6 @@
             const grid = document.getElementById('floorsGrid');
             grid.innerHTML = '';
 
-            // 1. KARTU TAMBAH LANTAI
             grid.innerHTML += `
                 <a href="/micro-studio/${buildingId}" class="border-2 border-dashed border-slate-600 hover:border-amber-500 hover:bg-amber-500/10 rounded-3xl p-8 flex flex-col items-center justify-center text-center transition-all group min-h-[200px]">
                     <div class="text-4xl mb-3 text-slate-500 group-hover:text-amber-500 group-hover:scale-110 transition-all">+</div>
@@ -157,7 +157,6 @@
                 </a>
             `;
 
-            // 2. KARTU LANTAI (SNEAK PEEK)
             if(building.floors && building.floors.length > 0) {
                 building.floors.forEach(f => {
                     let bgImage = f.image_path ? `url('${f.image_path}')` : 'none';
