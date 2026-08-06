@@ -13,9 +13,6 @@
         </div>
         
         <div class="flex items-center gap-4">
-            <button id="btnBulkDelete" onclick="processBulkDelete()" class="hidden bg-red-600/20 border border-red-500 text-red-400 hover:bg-red-600 hover:text-white px-5 py-2.5 rounded-xl font-bold transition flex items-center gap-2 text-sm shadow-[0_0_15px_rgba(220,38,38,0.2)]">
-                🗑️ Hapus Terpilih (<span id="bulkCount">0</span>)
-            </button>
             <button onclick="document.getElementById('modalAddDoc').classList.remove('hidden')" class="bg-amber-600/20 border border-amber-500 text-amber-400 hover:bg-amber-600 hover:text-white px-5 py-2.5 rounded-xl font-bold transition flex items-center gap-2 text-sm shadow-[0_0_15px_rgba(245,158,11,0.2)]">
                 + Upload Dokumen Baru
             </button>
@@ -43,10 +40,9 @@
                 <table class="w-full text-left text-sm whitespace-nowrap">
                     <thead class="text-slate-300 uppercase tracking-widest text-[10px] border-b-2 border-slate-600 bg-slate-900 sticky top-0">
                         <tr>
-                            <th class="p-4 pl-6 w-10">
-                                <input type="checkbox" id="checkAll" class="rounded bg-slate-800 border-slate-600 text-amber-500 focus:ring-amber-500 w-4 h-4 cursor-pointer">
-                            </th>
+                            
                             <th class="p-4 font-bold">Judul Dokumen</th>
+                            <th class="p-4 font-bold">Nama Asli File</th>
                             <th class="p-4 font-bold">Kategori</th>
                             <th class="p-4 font-bold">Keterangan</th>
                             <th class="p-4 font-bold">Tanggal Diupload</th>
@@ -56,13 +52,12 @@
                     <tbody class="divide-y divide-slate-700/80">
                         @forelse($documents as $doc)
                             <tr class="hover:bg-slate-800/40 transition">
-                                <td class="p-4 pl-6">
-                                    <input type="checkbox" value="{{ $doc->id }}" class="bulk-check rounded bg-slate-800 border-slate-600 text-amber-500 focus:ring-amber-500 w-4 h-4 cursor-pointer">
-                                </td>
+                                
                                 <td class="p-4 font-bold text-white flex items-center gap-3">
-                                    <span class="text-2xl">📄</span> 
+                                    <span class="text-2xl">📄</span>
                                     <a href="{{ asset($doc->file_path) }}" target="_blank" class="hover:text-amber-400 transition">{{ $doc->title }}</a>
                                 </td>
+                                <td class="p-4 text-xs text-slate-400 font-mono max-w-xs truncate" title="{{ $doc->original_filename }}">{{ $doc->original_filename ?? '-' }}</td>
                                 <td class="p-4">
                                     <span class="px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider bg-slate-800 text-amber-400 border border-amber-500/30">{{ $doc->category }}</span>
                                 </td>
@@ -70,8 +65,7 @@
                                 <td class="p-4 text-xs text-slate-400 font-mono">{{ $doc->created_at->format('d M Y - H:i') }}</td>
                                 <td class="p-4 pr-6 text-right space-x-2">
                                     <a href="{{ asset($doc->file_path) }}" target="_blank" class="text-emerald-400 hover:text-emerald-300 font-bold px-3 py-1 transition text-xs border border-emerald-900/50 rounded hover:bg-emerald-900/20">Unduh</a>
-                                    <button onclick="openEditModal({{ $doc->id }}, '{{ addslashes($doc->title) }}', '{{ addslashes($doc->category) }}', '{{ addslashes($doc->description) }}')" class="text-blue-400 hover:text-blue-300 font-bold px-3 py-1 transition text-xs border border-blue-900/50 rounded hover:bg-blue-900/20">Edit</button>
-                                    <button onclick="deleteDoc({{ $doc->id }})" class="text-red-400 hover:text-red-300 font-bold px-3 py-1 transition text-xs border border-red-900/50 rounded hover:bg-red-900/20">Hapus</button>
+                                    <button onclick="openEditModal({{ $doc->id }}, '{{ addslashes($doc->title) }}', '{{ addslashes($doc->category) }}', '{{ addslashes($doc->description) }}', '{{ addslashes($doc->original_filename) }}')" class="text-blue-400 hover:text-blue-300 font-bold px-3 py-1 transition text-xs border border-blue-900/50 rounded hover:bg-blue-900/20">Edit</button>
                                 </td>
                             </tr>
                         @empty
@@ -134,6 +128,10 @@
                     <input type="text" id="edit_category" name="category" list="catList" class="w-full bg-slate-900 border border-slate-700 text-white px-4 py-2 rounded-lg text-sm focus:border-blue-500 transition">
                 </div>
                 <div>
+                    <label class="block text-xs font-bold text-slate-400 mb-1">File Saat Ini</label>
+                    <p id="edit_original_filename" class="w-full bg-slate-950 border border-slate-800 text-slate-400 px-4 py-2 rounded-lg text-xs font-mono truncate">-</p>
+                </div>
+                <div>
                     <label class="block text-xs font-bold text-slate-400 mb-1">Ganti File (Kosongkan jika tetap)</label>
                     <input type="file" name="document_file" class="w-full bg-slate-950 border border-slate-700 text-slate-300 px-3 py-2 rounded-lg text-xs file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-bold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer transition">
                 </div>
@@ -162,25 +160,13 @@
     @if($errors->any()) showToast("Gagal! Periksa file atau inputan Anda.", 'bg-red-600'); @endif
 
     // Buka Modal Edit
-    function openEditModal(id, title, category, description) {
+    function openEditModal(id, title, category, description, originalFilename) {
         document.getElementById('formEditDoc').action = `/inventory/documents/${id}`;
         document.getElementById('edit_title').value = title;
         document.getElementById('edit_category').value = category;
         document.getElementById('edit_description').value = description;
+        document.getElementById('edit_original_filename').innerText = originalFilename || '-';
         document.getElementById('modalEditDoc').classList.remove('hidden');
-    }
-
-    // Hapus Single
-    async function deleteDoc(id) {
-        if(confirm('Hapus dokumen ini secara permanen dari server?')) {
-            try {
-                let res = await fetch(`/inventory/documents/${id}`, {
-                    method: 'DELETE', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' }
-                });
-                let data = await res.json();
-                if(data.success) { showToast(data.message, 'bg-emerald-600'); setTimeout(() => location.reload(), 1000); }
-            } catch(e) { showToast('Gagal menghapus!', 'bg-red-600'); }
-        }
     }
 
     // --- LOGIKA BULK DELETE ---
@@ -203,21 +189,6 @@
 
     bulkChecks.forEach(cb => cb.addEventListener('change', updateBulkUI));
 
-    async function processBulkDelete() {
-        const checked = Array.from(document.querySelectorAll('.bulk-check:checked')).map(cb => cb.value);
-        if(checked.length === 0) return;
-
-        if(confirm(`Yakin memusnahkan ${checked.length} dokumen sekaligus?`)) {
-            try {
-                let res = await fetch(`{{ route('documents.bulkDelete') }}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
-                    body: JSON.stringify({ ids: checked })
-                });
-                let data = await res.json();
-                if(data.success) { showToast(data.message, 'bg-emerald-600'); setTimeout(() => location.reload(), 1000); }
-            } catch(e) { showToast('Gagal menghapus massal!', 'bg-red-600'); }
-        }
-    }
+    
 </script>
 @endpush

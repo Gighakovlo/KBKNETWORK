@@ -448,7 +448,9 @@
                 });
                 const result = await res.json();
                 if(res.ok) {
-                    showToast(result.message); setTimeout(() => location.href = '/management', 1500); 
+                    showToast(result.message); 
+                    // Redirect otomatis ke halaman Mapping lantai yang baru dibuat/diupdate
+                    setTimeout(() => location.href = '/mapping/' + result.floor.id, 1500); 
                 } else { showToast("Error: Periksa inputan Tuan", true); }
             } catch (err) { showToast("Terjadi kesalahan jaringan", true);
             } finally { btn.innerText = "Simpan Data Lantai"; btn.disabled = false; }

@@ -162,21 +162,14 @@ class InventoryController extends Controller
         return view('inventory.category', compact('category', 'assets', 'perPage', 'search', 'sort'));
     }
 
-    // 6. Hapus Data Satuan
+    // 6. Hapus Data Satuan (DIGEMBOK DEMI AUDIT)
     public function destroy($id)
     {
-        try {
-            $asset = Asset::findOrFail($id);
-            $code = $asset->asset_code;
-            
-            // Lepaskan IP agar kembali tersedia
-            IpAddress::where('asset_id', $asset->id)->update(['asset_id' => null, 'status' => 'available']);
-            
-            $asset->delete(); 
-            return response()->json(['success' => true, 'message' => "Aset {$code} telah dimusnahkan dari sistem!"]);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Gagal menghapus: ' . $e->getMessage()], 500);
-        }
+        // Sistem menolak semua perintah penghapusan fisik dari siapapun
+        return response()->json([
+            'success' => false, 
+            'message' => 'AKSES DITOLAK! Penghapusan data aset dilarang demi integritas Audit. Silakan ubah status aset menjadi "Salah Input" atau "Hilang".'
+        ], 403);
     }
 
     // 7. Halaman Edit Data Aset
@@ -444,20 +437,11 @@ class InventoryController extends Controller
     // 12. Bulk Delete (Pemusnah Massal)
     public function bulkDelete(Request $request)
     {
-        $request->validate(['ids' => 'required|array', 'ids.*' => 'exists:assets,id']);
-
-        DB::beginTransaction();
-        try {
-            // Lepaskan semua IP dari aset-aset yang akan dimusnahkan
-            IpAddress::whereIn('asset_id', $request->ids)->update(['asset_id' => null, 'status' => 'available']);
-            
-            Asset::whereIn('id', $request->ids)->delete();
-            DB::commit();
-            return response()->json(['success' => true, 'message' => count($request->ids) . ' data aset berhasil dimusnahkan secara massal!']);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json(['success' => false, 'message' => 'Gagal menghapus massal: ' . $e->getMessage()], 500);
-        }
+        // Sistem menolak semua perintah penghapusan massal
+        return response()->json([
+            'success' => false, 
+            'message' => 'AKSES DITOLAK! Fitur pemusnah massal telah dinonaktifkan permanen oleh sistem.'
+        ], 403);
     }
 
     // =================================================================

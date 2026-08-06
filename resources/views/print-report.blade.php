@@ -63,7 +63,7 @@
     @endphp
 
     <div class="action-buttons no-print">
-        <button onclick="history.back()" class="btn-back">&larr; Kembali</button>
+        <button onclick="window.close()" class="btn-back">&larr; Tutup Tab & Kembali</button>
         <button onclick="setOrientation('portrait')" class="btn-toggle">📄 Portrait</button>
         <button onclick="setOrientation('landscape')" class="btn-toggle">🖨️ Landscape</button>
         <button onclick="window.print()" class="btn-print">🖨️ Cetak Laporan PDF</button>
@@ -164,7 +164,11 @@
 
     <script>
         function setOrientation(type) {
+            // Mengubah orientasi CSS print
             document.getElementById('page-style').innerHTML = `@page { size: A4 ${type}; margin: 15mm; }`;
+            
+            // Memunculkan notifikasi pop-up
+            alert('Format kertas berhasil diubah ke mode ' + type.toUpperCase() + '. Silakan klik tombol Cetak Laporan PDF!');
         }
 
         const imageUrl = "{{ $floor->image_path }}";

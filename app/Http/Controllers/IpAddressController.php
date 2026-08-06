@@ -76,15 +76,14 @@ class IpAddressController extends Controller
         $ip = IpAddress::findOrFail($id);
         
         $request->validate([
-            // Validasi unik kecuali untuk ID miliknya sendiri
             'ip_address' => 'required|ipv4|unique:ip_addresses,ip_address,' . $id,
             'gateway' => 'nullable|ipv4',
             'description' => 'nullable|string|max:255',
-            'status' => 'required|in:available,reserved'
+            // TAMBAHKAN in_use DI SINI AGAR TIDAK DITOLAK LARAVEL
+            'status' => 'required|in:available,reserved,in_use' 
         ]);
 
         try {
-            // Logika Pintar: Jika IP sedang menempel di aset, paksa statusnya tetap 'in_use'
             $finalStatus = $ip->asset_id ? 'in_use' : $request->status;
 
             $ip->update([

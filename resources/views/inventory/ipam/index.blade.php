@@ -90,7 +90,6 @@
                                 <td class="p-4 text-xs text-slate-400">{{ $ip->description ?? '-' }}</td>
                                 <td class="p-4 pr-6 text-right space-x-2">
                                     <button onclick="openEditModal({{ $ip->id }}, '{{ $ip->ip_address }}', '{{ $ip->gateway }}', '{{ $ip->status }}', '{{ addslashes($ip->description) }}')" class="text-blue-400 hover:text-blue-300 font-bold px-3 py-1 transition text-xs border border-blue-900/50 rounded hover:bg-blue-900/20">Edit</button>
-                                    <button onclick="confirmDelete('{{ $ip->id }}', '{{ $ip->ip_address }}')" class="text-red-400 hover:text-red-300 font-bold px-3 py-1 transition text-xs border border-red-900/50 rounded hover:bg-red-900/20">Hapus</button>
                                 </td>
                             </tr>
                         @empty
@@ -200,25 +199,7 @@
         });
     });
 
-    // Delete IP
-    async function confirmDelete(id, ip) {
-        if (confirm(`Peringatan! Yakin ingin menghapus IP ${ip} dari sistem?`)) {
-            try {
-                const response = await fetch(`/inventory/ipam/${id}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                        'Accept': 'application/json'
-                    }
-                });
-                const r = await response.json();
-                if(r.success) {
-                    showToast(r.message, 'bg-emerald-600');
-                    setTimeout(() => location.reload(), 1000);
-                } else { showToast(r.message, 'bg-red-600'); }
-            } catch (err) { showToast('Gagal terhubung ke server.', 'bg-red-600'); }
-        }
-    }
+    
 
     // Modal Edit
     function openEditModal(id, ip, gateway, status, description) {

@@ -81,7 +81,6 @@
                                     @if($req->status == 'pending')
                                         <button onclick="markCompleted('{{ $req->id }}')" class="text-emerald-400 hover:text-white bg-emerald-900/20 hover:bg-emerald-600 border border-emerald-900/50 font-bold px-3 py-1 rounded transition text-xs">Selesaikan</button>
                                     @endif
-                                    <button onclick="confirmDelete('{{ $req->id }}')" class="text-slate-500 hover:text-red-400 font-bold px-3 py-1 transition text-xs border border-transparent hover:border-red-900/50 rounded">Hapus</button>
                                 </td>
                             </tr>
                         @empty
@@ -167,17 +166,5 @@
         }
     }
 
-    async function confirmDelete(id) {
-        if(confirm('Hapus tiket ini permanen?')) {
-            try {
-                const res = await fetch(`/inventory/requests/${id}`, {
-                    method: 'DELETE',
-                    headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'), 'Accept': 'application/json' }
-                });
-                const r = await res.json();
-                if(r.success) { showToast(r.message, 'bg-emerald-600'); setTimeout(() => location.reload(), 1000); }
-            } catch(err) { showToast('Gagal menghapus.', 'bg-red-600'); }
-        }
-    }
 </script>
 @endpush

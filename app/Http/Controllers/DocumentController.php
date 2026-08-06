@@ -19,7 +19,8 @@ class DocumentController extends Controller
         if (!empty($search)) {
             $query->where('title', 'like', "%{$search}%")
                   ->orWhere('category', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
+                  ->orWhere('description', 'like', "%{$search}%")
+                  ->orWhere('original_filename', 'like', "%{$search}%");
         }
 
         $documents = $query->orderBy('created_at', 'desc')->paginate($perPage)->appends($request->query());
@@ -37,7 +38,8 @@ class DocumentController extends Controller
         ]);
 
         $file = $request->file('document_file');
-        $filename = time() . '_' . preg_replace('/[^A-Za-z0-9.\-]/', '_', $file->getClientOriginalName());
+        $originalFilename = $file->getClientOriginalName();
+        $filename = time() . '_' . preg_replace('/[^A-Za-z0-9.\-]/', '_', $originalFilename);
 
         // Simpan ke folder public/uploads/documents
         $file->move(public_path('uploads/documents'), $filename);
@@ -46,6 +48,7 @@ class DocumentController extends Controller
             'title' => $request->title,
             'category' => $request->category ?? 'Umum',
             'file_path' => 'uploads/documents/' . $filename,
+            'original_filename' => $originalFilename,
             'description' => $request->description,
         ]);
 
@@ -74,9 +77,11 @@ class DocumentController extends Controller
             }
 
             $file = $request->file('document_file');
-            $filename = time() . '_' . preg_replace('/[^A-Za-z0-9.\-]/', '_', $file->getClientOriginalName());
+            $originalFilename = $file->getClientOriginalName();
+            $filename = time() . '_' . preg_replace('/[^A-Za-z0-9.\-]/', '_', $originalFilename);
             $file->move(public_path('uploads/documents'), $filename);
             $data['file_path'] = 'uploads/documents/' . $filename;
+            $data['original_filename'] = $originalFilename;
         }
 
         $doc->update($data);
